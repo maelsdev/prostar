@@ -7,6 +7,7 @@ use App\Filament\Resources\TourResource\RelationManagers;
 use App\Models\Tour;
 use App\Models\MediaFile;
 use App\Models\TourImage;
+use App\Models\Hotel;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -30,7 +31,12 @@ class TourResource extends Resource
     {
         return $form
             ->schema([
-                Forms\Components\Section::make('Основна інформація')
+                Forms\Components\Tabs::make('TourTabs')
+                    ->tabs([
+                        Forms\Components\Tabs\Tab::make('Основна інформація')
+                            ->icon('heroicon-o-information-circle')
+                            ->schema([
+                                Forms\Components\Section::make('Основна інформація')
                     ->schema([
                         Forms\Components\TextInput::make('name')
                             ->label('Назва туру')
@@ -125,19 +131,97 @@ class TourResource extends Resource
                     ])
                     ->columns(3),
                     
-                Forms\Components\Section::make('Готель та харчування')
+                Forms\Components\Section::make('Готель')
                     ->schema([
+                        Forms\Components\Select::make('hotel_id')
+                            ->label('Оберіть готель')
+                            ->relationship('hotel', 'name')
+                            ->searchable()
+                            ->preload()
+                            ->placeholder('Оберіть готель зі списку')
+                            ->helperText('Виберіть готель зі списку або створіть новий')
+                            ->suffixAction(
+                                Forms\Components\Actions\Action::make('create_hotel')
+                                    ->label('Створити новий готель')
+                                    ->icon('heroicon-o-plus')
+                                    ->url(fn () => \App\Filament\Resources\HotelResource::getUrl('create'))
+                                    ->openUrlInNewTab()
+                            )
+                            ->createOptionForm([
+                                Forms\Components\TextInput::make('name')
+                                    ->label('Назва готелю')
+                                    ->required()
+                                    ->maxLength(255),
+                            ])
+                            ->createOptionUsing(function (array $data): int {
+                                return Hotel::create($data)->id;
+                            })
+                            ->reactive()
+                            ->afterStateUpdated(function ($state, callable $set) {
+                                // Очищаємо старі поля, якщо вибрано готель
+                                if ($state) {
+                                    $set('hotel_name', null);
+                                }
+                            }),
+                            
+                        Forms\Components\Placeholder::make('hotel_info')
+                            ->label('')
+                            ->content(function ($get) {
+                                $hotelId = $get('hotel_id');
+                                if ($hotelId) {
+                                    $hotel = Hotel::with('rooms')->find($hotelId);
+                                    if ($hotel) {
+                                        $roomsInfo = $hotel->rooms->map(function ($room) {
+                                            $bedTypesArray = [];
+                                            if (is_array($room->bed_types)) {
+                                                if (isset($room->bed_types['single']) && $room->bed_types['single'] > 0) {
+                                                    $bedTypesArray[] = $room->bed_types['single'] . ' односпальн' . ($room->bed_types['single'] > 1 ? 'их' : 'е');
+                                                }
+                                                if (isset($room->bed_types['double']) && $room->bed_types['double'] > 0) {
+                                                    $bedTypesArray[] = $room->bed_types['double'] . ' двоспальн' . ($room->bed_types['double'] > 1 ? 'их' : 'е');
+                                                }
+                                            }
+                                            $bedTypes = !empty($bedTypesArray) ? implode(', ', $bedTypesArray) : 'не вказано';
+                                            
+                                            return sprintf(
+                                                '<strong>%s</strong> - %s кімн., ліжка: %s',
+                                                $room->room_type,
+                                                $room->rooms_count,
+                                                $bedTypes
+                                            );
+                                        })->join('<br>');
+                                        
+                                        return new \Illuminate\Support\HtmlString(
+                                            '<div class="mt-2 p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">' .
+                                            '<p class="font-semibold text-sm mb-2">Номери готелю:</p>' .
+                                            '<div class="text-sm text-gray-600 dark:text-gray-400">' .
+                                            ($roomsInfo ?: '<em>Номерів ще не додано</em>') .
+                                            '</div>' .
+                                            '</div>'
+                                        );
+                                    }
+                                }
+                                return new \Illuminate\Support\HtmlString(
+                                    '<p class="text-sm text-gray-500 dark:text-gray-400">Оберіть готель, щоб побачити доступні номери</p>'
+                                );
+                            })
+                            ->visible(fn ($get) => $get('hotel_id'))
+                            ->columnSpanFull(),
+                            
+                        // Старі поля для сумісності (якщо не використовується готель)
                         Forms\Components\TextInput::make('hotel_name')
-                            ->label('Назва готелю')
+                            ->label('Назва готелю (вручну)')
                             ->maxLength(255)
                             ->placeholder('Назва готелю')
-                            ->helperText('Вкажіть назву готелю'),
+                            ->helperText('Або вкажіть назву готелю вручну')
+                            ->visible(fn ($get) => !$get('hotel_id')),
                             
                         Forms\Components\Textarea::make('hotel_description')
                             ->label('Опис готелю')
                             ->rows(3)
                             ->placeholder('Опис готелю, розташування, умови проживання')
                             ->helperText('Додаткова інформація про готель')
+                            ->visible(fn ($get) => !$get('hotel_id'))
                             ->columnSpanFull(),
                             
                         Forms\Components\Grid::make(2)
@@ -152,7 +236,8 @@ class TourResource extends Resource
                                     ->helperText('Включені вечері')
                                     ->default(false),
                             ])
-                            ->columnSpanFull(),
+                            ->columnSpanFull()
+                            ->visible(fn ($get) => !$get('hotel_id')),
                             
                         Forms\Components\Placeholder::make('meals_info')
                             ->label('')
@@ -161,7 +246,8 @@ class TourResource extends Resource
                                 'Якщо нічого не відмічено, буде відображатися "Без харчування"' .
                                 '</p>'
                             ))
-                            ->columnSpanFull(),
+                            ->columnSpanFull()
+                            ->visible(fn ($get) => !$get('hotel_id')),
                     ])
                     ->columns(2),
 
@@ -355,6 +441,72 @@ class TourResource extends Resource
                             ->addActionLabel('Додати варіант ціни')
                             ->columnSpanFull(),
                     ]),
+                            ]),
+                        
+                        Forms\Components\Tabs\Tab::make('Калькулятор туру')
+                            ->icon('heroicon-o-calculator')
+                            ->schema([
+                                Forms\Components\Section::make('Готель')
+                                    ->schema([
+                                        Forms\Components\Select::make('hotel_id')
+                                            ->label('Оберіть готель')
+                                            ->options(Hotel::all()->pluck('name', 'id'))
+                                            ->searchable()
+                                            ->placeholder('Оберіть готель зі списку')
+                                            ->helperText('Оберіть готель для імпорту типів номерів')
+                                            ->reactive()
+                                            ->afterStateUpdated(function ($state, callable $set) {
+                                                // Очищаємо room_prices при зміні готелю
+                                                $set('room_prices', null);
+                                            })
+                                            ->visible(fn ($get) => empty($get('room_prices'))),
+                                        
+                                        Forms\Components\View::make('filament.forms.components.import-hotel-rooms-button')
+                                            ->visible(fn ($get) => !empty($get('hotel_id')) && empty($get('room_prices'))),
+                                        
+                                        Forms\Components\View::make('filament.forms.components.tour-room-prices')
+                                            ->viewData(fn ($get) => [
+                                                'hotel_id' => $get('hotel_id'),
+                                                'room_prices' => $get('room_prices') ?? [],
+                                                'transfer_price_to_tour' => $get('transfer_price_to_tour') ?? 0,
+                                                'transfer_price_from_tour' => $get('transfer_price_from_tour') ?? 0,
+                                            ])
+                                            ->visible(fn ($get) => !empty($get('hotel_id'))),
+                                    ]),
+                                
+                                Forms\Components\Section::make('Трансфери')
+                                    ->schema([
+                                        Forms\Components\TextInput::make('transfer_price_to_tour')
+                                            ->label('Трансфер в тур')
+                                            ->numeric()
+                                            ->prefix('₴')
+                                            ->step(0.01)
+                                            ->minValue(0)
+                                            ->placeholder('0.00')
+                                            ->helperText('Вартість трансферу до місця призначення')
+                                            ->reactive(),
+                                        
+                                        Forms\Components\TextInput::make('transfer_price_from_tour')
+                                            ->label('Трансфер з туру')
+                                            ->numeric()
+                                            ->prefix('₴')
+                                            ->step(0.01)
+                                            ->minValue(0)
+                                            ->placeholder('0.00')
+                                            ->helperText('Вартість трансферу з місця призначення')
+                                            ->reactive(),
+                                    ])
+                                    ->columns(2),
+                                
+                                Forms\Components\Section::make('Дії')
+                                    ->schema([
+                                        Forms\Components\View::make('filament.forms.components.clear-calculator-button'),
+                                    ])
+                                    ->collapsible(false),
+                            ])
+                            ->visible(fn ($record) => $record && $record->exists),
+                    ])
+                    ->columnSpanFull(),
             ]);
     }
 
