@@ -1,0 +1,55 @@
+# База даних (НЕ комітити!)
+*.sqlite
+*.sqlite3
+*.db
+database.sqlite
+laravel/database/database.sqlite
+
+# Laravel
+laravel/.env
+laravel/.env.backup
+laravel/.env.production
+laravel/vendor/
+laravel/node_modules/
+laravel/storage/*.key
+laravel/public/storage
+laravel/public/hot
+laravel/public/build
+laravel/bootstrap/cache/*
+!laravel/bootstrap/cache/.gitignore
+laravel/.phpunit.cache
+laravel/.phpunit.result.cache
+
+# Системні файли
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+*.swp
+*.swo
+*~
+
+# IDE
+.idea/
+.vscode/
+.fleet/
+*.sublime-project
+*.sublime-workspace
+
+# Архіви та тимчасові файли
+*.zip
+*.tar.gz
+*.log
+prostar-release.zip
+
+# Composer
+composer.phar
+auth.json
+
+# npm
+npm-debug.log
+yarn-error.log
+package-lock.json
