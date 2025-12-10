@@ -41,6 +41,7 @@ class Tour extends Model
         'short_description',
         'full_description',
         'price_options',
+        'is_booking_enabled',
     ];
 
     protected $casts = [
@@ -60,6 +61,7 @@ class Tour extends Model
         'margin' => 'decimal:2',
         'room_prices' => 'array',
         'price_options' => 'array',
+        'is_booking_enabled' => 'boolean',
     ];
 
     /**

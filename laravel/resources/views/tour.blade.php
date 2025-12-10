@@ -326,10 +326,19 @@
 
                     <!-- Кнопка бронювання -->
                     <div class="tour-sidebar-card">
-                        <button type="button" class="btn btn-primary btn-block tour-book-btn" onclick="openBookingModal({{ $tour->id }})">
-                            <i class="fas fa-calendar-check"></i>
-                            Забронювати тур
-                        </button>
+                        @if($tour->is_booking_enabled ?? true)
+                            <button type="button" class="btn btn-primary btn-block tour-book-btn" onclick="openBookingModal({{ $tour->id }})">
+                                <i class="fas fa-calendar-check"></i>
+                                Забронювати тур
+                            </button>
+                        @else
+                            <div class="booking-disabled-message" style="padding: 1.5rem; text-align: center; background: #f3f4f6; border-radius: 8px; margin-bottom: 1rem;">
+                                <i class="fas fa-calendar-times" style="font-size: 2rem; color: #9ca3af; margin-bottom: 0.5rem;"></i>
+                                <p style="color: #6b7280; font-size: 1rem; margin: 0; line-height: 1.5;">
+                                    На жаль, місць в турі більше не залишилось :(
+                                </p>
+                            </div>
+                        @endif
                         <a href="tel:+380981212011" class="btn btn-outline btn-block tour-call-btn">
                             <i class="fas fa-phone-alt"></i>
                             +38(098) 12-12-011

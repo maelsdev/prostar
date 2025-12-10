@@ -309,6 +309,12 @@
                                             <span class="tour-month">{{ $month }}</span>
                                             <span class="tour-days">{{ $days }}</span>
                                         </div>
+                                        @if(!($tour->is_booking_enabled ?? true))
+                                            <div class="tour-booking-status" style="position: absolute; top: 16px; left: 16px; background: rgba(239, 68, 68, 0.9); color: white; padding: 8px 12px; border-radius: 6px; font-size: 12px; font-weight: 600; display: flex; align-items: center; gap: 6px; backdrop-filter: blur(10px); box-shadow: 0 2px 8px rgba(0,0,0,0.2);">
+                                                <i class="fas fa-calendar-times"></i>
+                                                <span>Місць немає</span>
+                                            </div>
+                                        @endif
                                     </div>
                                     <div class="tour-content-wrapper">
                                         <div class="tour-info">
@@ -347,6 +353,12 @@
                                                 <p class="tour-description">
                                                     {{ $tour->short_description }}
                                                 </p>
+                                            @endif
+                                            @if(!($tour->is_booking_enabled ?? true))
+                                                <div style="margin-top: 12px; display: flex; align-items: center; gap: 6px; color: #ef4444; font-size: 13px; font-weight: 500;">
+                                                    <i class="fas fa-info-circle"></i>
+                                                    <span>Бронювання недоступне</span>
+                                                </div>
                                             @endif
                                         </div>
                                         @if($minPrice)

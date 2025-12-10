@@ -36,6 +36,17 @@ class TourResource extends Resource
                         Forms\Components\Tabs\Tab::make('Основна інформація')
                             ->icon('heroicon-o-information-circle')
                             ->schema([
+                                Forms\Components\Section::make('Бронювання')
+                    ->schema([
+                        Forms\Components\Toggle::make('is_booking_enabled')
+                            ->label('Увімкнути бронювання')
+                            ->helperText('Якщо увімкнено, користувачі зможуть бронювати цей тур. Якщо вимкнено, буде показано повідомлення про відсутність місць.')
+                            ->default(true)
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->collapsed(false),
+                    
                 Forms\Components\Section::make('Основна інформація')
                     ->schema([
                         Forms\Components\TextInput::make('name')

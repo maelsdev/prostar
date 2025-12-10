@@ -1,69 +1,117 @@
 @php
-    $hotelId = $hotel_id ?? null;
-    $roomPrices = $room_prices ?? [];
-    $transferTo = (float)($transfer_price_to_tour ?? 0);
-    $transferFrom = (float)($transfer_price_from_tour ?? 0);
-    $roomsData = [];
-    
-    if ($hotelId) {
-        $hotel = \App\Models\Hotel::with('rooms')->find($hotelId);
-        if ($hotel && $hotel->rooms) {
-            foreach ($hotel->rooms as $room) {
-                $roomId = $room->id;
-                $price = 0;
-                $roomMargin = 0;
-                
-                // Отримуємо збережені дані з room_prices, якщо вони є
-                if (!empty($roomPrices) && is_array($roomPrices) && isset($roomPrices[$roomId])) {
-                    $priceData = $roomPrices[$roomId];
-                    $price = is_array($priceData) ? ($priceData['price'] ?? 0) : 0;
-                    $roomMargin = is_array($priceData) ? ($priceData['margin'] ?? 0) : 0;
-                }
-                
-                // Розраховуємо загальну вартість
-                $totalPrice = $price + $roomMargin + $transferTo + $transferFrom;
-                
-                $roomsData[$roomId] = [
-                    'room_id' => $room->id,
-                    'room_type' => $room->room_type,
-                    'bed_types' => $room->bed_types,
-                    'meals' => $room->meals,
-                    'places_per_room' => $room->places_per_room,
-                    'price' => $price,
-                    'margin' => $roomMargin,
-                    'total_price' => $totalPrice,
-                ];
-            }
-        }
-    }
+$hotelId = $hotel_id ?? null;
+$roomPrices = $room_prices ?? [];
+// Отримуємо значення перемикачів
+// Якщо перемикач не передано (null), перевіряємо чи є ціна трансферу
+// Якщо є ціна, вважаємо що трансфер увімкнено (для зворотної сумісності)
+$transferPriceTo = (float)($transfer_price_to_tour ?? 0);
+$transferPriceFrom = (float)($transfer_price_from_tour ?? 0);
+
+// Визначаємо чи увімкнені трансфери
+// Якщо перемикач передано, використовуємо його значення
+// Якщо не передано (null), перевіряємо чи є ціна > 0
+$hasTransferTo = isset($has_transfer_to_tour) 
+    ? (bool)$has_transfer_to_tour 
+    : ($transferPriceTo > 0);
+$hasTransferFrom = isset($has_transfer_from_tour) 
+    ? (bool)$has_transfer_from_tour 
+    : ($transferPriceFrom > 0);
+
+// Враховуємо перемикачі при обчисленні вартості трансферів
+$transferTo = $hasTransferTo ? $transferPriceTo : 0;
+$transferFrom = $hasTransferFrom ? $transferPriceFrom : 0;
+$roomsData = [];
+
+if ($hotelId) {
+$hotel = \App\Models\Hotel::with('rooms')->find($hotelId);
+if ($hotel && $hotel->rooms) {
+foreach ($hotel->rooms as $room) {
+$roomId = $room->id;
+$price = 0;
+$roomMargin = 0;
+
+// Отримуємо збережені дані з room_prices, якщо вони є
+if (!empty($roomPrices) && is_array($roomPrices) && isset($roomPrices[$roomId])) {
+$priceData = $roomPrices[$roomId];
+$price = is_array($priceData) ? ($priceData['price'] ?? 0) : 0;
+$roomMargin = is_array($priceData) ? ($priceData['margin'] ?? 0) : 0;
+}
+
+// Розраховуємо загальну вартість (враховуючи перемикачі трансферів)
+// $transferTo та $transferFrom вже враховують перемикачі вище
+$totalPrice = $price + $roomMargin + $transferTo + $transferFrom;
+
+$roomsData[$roomId] = [
+'room_id' => $room->id,
+'room_type' => $room->room_type,
+'bed_types' => $room->bed_types,
+'meals' => $room->meals,
+'places_per_room' => $room->places_per_room,
+'price' => $price,
+'margin' => $roomMargin,
+'total_price' => $totalPrice,
+];
+}
+}
+}
 @endphp
 
 @if(!empty($roomsData))
-<div class="space-y-4" 
-     x-data="roomPricesData()"
-     x-init="
-         // Слухаємо зміни трансферів через Livewire
-         Livewire.on('updated', () => {
-             const updateValues = () => {
-                 const transferToInput = document.querySelector('input[wire\\:model*=\"transfer_price_to_tour\"], input[name*=\"transfer_price_to_tour\"]');
-                 const transferFromInput = document.querySelector('input[wire\\:model*=\"transfer_price_from_tour\"], input[name*=\"transfer_price_from_tour\"]');
-                 
-                 if (transferToInput) {
-                     transferTo = parseFloat(transferToInput.value) || 0;
-                 }
-                 if (transferFromInput) {
-                     transferFrom = parseFloat(transferFromInput.value) || 0;
-                 }
-             };
-             setTimeout(updateValues, 100);
-         });
-     ">
+@php
+    $roomsDataJson = json_encode($roomsData, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS);
+    $transferToJs = (string)$transferTo;
+    $transferFromJs = (string)$transferFrom;
+    $hasTransferToJs = $hasTransferTo ? 'true' : 'false';
+    $hasTransferFromJs = $hasTransferFrom ? 'true' : 'false';
+@endphp
+<script id="room-prices-config" type="application/json">
+{!! $roomsDataJson !!}
+</script>
+<script>
+    window.roomPricesConfig = JSON.parse(document.getElementById('room-prices-config').textContent);
+    window.roomPricesConfig.transferTo = parseFloat('{{ $transferToJs }}') || 0;
+    window.roomPricesConfig.transferFrom = parseFloat('{{ $transferFromJs }}') || 0;
+    window.roomPricesConfig.hasTransferTo = '{{ $hasTransferToJs }}' === 'true';
+    window.roomPricesConfig.hasTransferFrom = '{{ $hasTransferFromJs }}' === 'true';
+</script>
+<div class="space-y-4"
+    x-data="roomPricesData()"
+    x-init="initRoomPrices()">
     <script>
+        /**
+         * @type {Function}
+         */
+        function initRoomPrices() {
+            if (typeof Livewire !== 'undefined') {
+                Livewire.on('updated', function() {
+                    const updateValues = function() {
+                        const selectorTo = 'input[wire\\:model*="transfer_price_to_tour"], input[name*="transfer_price_to_tour"]';
+                        const selectorFrom = 'input[wire\\:model*="transfer_price_from_tour"], input[name*="transfer_price_from_tour"]';
+                        const transferToInput = document.querySelector(selectorTo);
+                        const transferFromInput = document.querySelector(selectorFrom);
+                        if (transferToInput && window.roomPricesDataInstance) {
+                            window.roomPricesDataInstance.transferTo = parseFloat(transferToInput.value) || 0;
+                        }
+                        if (transferFromInput && window.roomPricesDataInstance) {
+                            window.roomPricesDataInstance.transferFrom = parseFloat(transferFromInput.value) || 0;
+                        }
+                    };
+                    setTimeout(updateValues, 100);
+                });
+            }
+        }
+        
+        /**
+         * @returns {Object}
+         */
         function roomPricesData() {
-            return {
-                roomPrices: {!! json_encode($roomsData, JSON_UNESCAPED_UNICODE | JSON_HEX_APOS) !!},
-                transferTo: {{ $transferTo }},
-                transferFrom: {{ $transferFrom }},
+            const config = window.roomPricesConfig || {};
+            const instance = {
+                roomPrices: config.roomPrices || {},
+                transferTo: Number(config.transferTo) || 0,
+                transferFrom: Number(config.transferFrom) || 0,
+                hasTransferTo: config.hasTransferTo === true || config.hasTransferTo === 'true',
+                hasTransferFrom: config.hasTransferFrom === true || config.hasTransferFrom === 'true',
                 updatePrice(roomId, price) {
                     if (!this.roomPrices[roomId]) {
                         return;
@@ -99,6 +147,7 @@
                     return roomPrice + roomMargin + transferTo + transferFrom;
                 },
                 getTransferToggle(fieldName) {
+<<<<<<< HEAD
                     // Шукаємо перемикач через Alpine.js або Livewire
                     const toggleComponent = document.querySelector(`[x-data*="hasTransferTo"], [x-data*="hasTransferFrom"]`);
                     if (toggleComponent && toggleComponent.__x) {
@@ -109,113 +158,145 @@
                             return alpineData.hasTransferFrom || false;
                         }
                     }
-                    // Якщо не знайдено через Alpine, шукаємо через Livewire
+                    // Оновлюємо значення перемикачів з Livewire
                     try {
                         const livewireData = $wire.get('data.' + fieldName);
-                        return livewireData || false;
+                        if (fieldName === 'has_transfer_to_tour') {
+                            this.hasTransferTo = livewireData || false;
+                            return this.hasTransferTo;
+                        } else if (fieldName === 'has_transfer_from_tour') {
+                            this.hasTransferFrom = livewireData || false;
+                            return this.hasTransferFrom;
+                        }
                     } catch (e) {
-                        return false;
+                        // Якщо не вдалося отримати через Livewire, використовуємо поточне значення
+                        if (fieldName === 'has_transfer_to_tour') {
+                            return this.hasTransferTo || false;
+                        } else if (fieldName === 'has_transfer_from_tour') {
+                            return this.hasTransferFrom || false;
+                        }
                     }
+                    return false;
+>>>>>>> 7a67677 (Додано функцію вмикання/вимикання бронювання турів, виправлено баг з розрахунком ціни трансферів, очищено проєкт від зайвих файлів)
                 },
                 updateTransferValues() {
-                    const transferToInput = document.querySelector('input[wire\\:model*="transfer_price_to_tour"], input[name*="transfer_price_to_tour"]');
-                    const transferFromInput = document.querySelector('input[wire\\:model*="transfer_price_from_tour"], input[name*="transfer_price_from_tour"]');
-                    
-                    let changed = false;
-                    if (transferToInput) {
-                        const newValue = parseFloat(transferToInput.value) || 0;
-                        if (this.transferTo !== newValue) {
-                            this.transferTo = newValue;
-                            changed = true;
-                        }
-                    }
-                    if (transferFromInput) {
-                        const newValue = parseFloat(transferFromInput.value) || 0;
-                        if (this.transferFrom !== newValue) {
-                            this.transferFrom = newValue;
-                            changed = true;
-                        }
-                    }
-                    
-                    // Якщо значення трансферів змінилися, зберігаємо room_prices
-                    if (changed) {
-                        this.saveRoomPrices();
-                    }
-                },
-                saveRoomPrices() {
-                    const dataToSave = {};
-                    Object.keys(this.roomPrices).forEach(id => {
-                        const room = this.roomPrices[id];
-                        // Оновлюємо загальну вартість перед збереженням
-                        const totalPrice = this.getTotalPrice(id);
-                        room.total_price = totalPrice;
-                        
-                        dataToSave[id] = {
-                            room_id: room.room_id,
-                            room_type: room.room_type,
-                            bed_types: room.bed_types,
-                            meals: room.meals,
-                            places_per_room: room.places_per_room,
-                            price: room.price,
-                            margin: room.margin || 0,
-                            total_price: totalPrice
-                        };
-                    });
-                    
-                    // Зберігаємо дані через Livewire
-                    $wire.set('data.room_prices', dataToSave, false);
-                    
-                    // Також викликаємо збереження форми після невеликої затримки
-                    setTimeout(() => {
-                        // Перевіряємо, чи є кнопка збереження
-                        const saveButton = document.querySelector('button[type="submit"], button[wire\\:click*="save"]');
-                        if (saveButton) {
-                            // Не викликаємо автоматичне збереження, просто оновлюємо дані
-                        }
-                    }, 100);
-                },
-                init() {
-                    // Оновлюємо значення трансферів при ініціалізації
-                    this.updateTransferValues();
-                    
-                    // Слухаємо зміни в полях трансферів
-                    const handleInput = (e) => {
-                        if (e.target && (
-                            e.target.name?.includes('transfer_price_to_tour') ||
-                            e.target.name?.includes('transfer_price_from_tour') ||
-                            e.target.id?.includes('transfer_price_to_tour') ||
-                            e.target.id?.includes('transfer_price_from_tour')
-                        )) {
-                            this.updateTransferValues();
-                        }
-                    };
-                    
-                    document.addEventListener('input', handleInput);
-                    document.addEventListener('change', handleInput);
-                    
-                    // Також перевіряємо через інтервал для надійності
-                    setInterval(() => {
-                        this.updateTransferValues();
-                    }, 500);
-                },
-                getMealsLabel(meals) {
-                    const labels = {
-                        'breakfast': 'Сніданки',
-                        'breakfast_dinner': 'Сніданок + вечеря',
-                        'no_meals': 'Без харчування'
-                    };
-                    return labels[meals] || 'Без харчування';
-                },
-                getBedTypesLabel(bedTypes) {
-                    if (!bedTypes || typeof bedTypes !== 'object') return '';
-                    const single = bedTypes.single || 0;
-                    const double = bedTypes.double || 0;
-                    const parts = [];
-                    if (single > 0) parts.push(single + ' односпальн' + (single > 1 ? 'их' : 'е'));
-                    if (double > 0) parts.push(double + ' двоспальн' + (double > 1 ? 'их' : 'е'));
-                    return parts.join(', ') || '—';
-                }
+                    const transferToInput = document.querySelector('input[wire\\:model*=" transfer_price_to_tour"], input[name*="transfer_price_to_tour" ]');
+    const transferFromInput=document.querySelector('input[wire\\:model*="transfer_price_from_tour" ], input[name*="transfer_price_from_tour" ]');
+
+    let changed=false;
+    if (transferToInput) {
+    const newValue=parseFloat(transferToInput.value) || 0;
+    if (this.transferTo !==newValue) {
+    this.transferTo=newValue;
+    changed=true;
+    }
+    }
+    if (transferFromInput) {
+    const newValue=parseFloat(transferFromInput.value) || 0;
+    if (this.transferFrom !==newValue) {
+    this.transferFrom=newValue;
+    changed=true;
+    }
+    }
+
+    // Оновлюємо перемикачі з Livewire
+    try {
+    const hasTransferTo=$wire.get('data.has_transfer_to_tour') || false;
+    const hasTransferFrom=$wire.get('data.has_transfer_from_tour') || false;
+
+    if (this.hasTransferTo !==hasTransferTo) {
+    this.hasTransferTo=hasTransferTo;
+    changed=true;
+    }
+    if (this.hasTransferFrom !==hasTransferFrom) {
+    this.hasTransferFrom=hasTransferFrom;
+    changed=true;
+    }
+    } catch (e) {
+    // Ігноруємо помилки отримання значень
+    }
+
+    // Якщо значення трансферів змінилися, зберігаємо room_prices
+    if (changed) {
+    this.saveRoomPrices();
+    }
+    },
+    saveRoomPrices() {
+    const dataToSave={};
+    Object.keys(this.roomPrices).forEach(id=> {
+    const room = this.roomPrices[id];
+    // Оновлюємо загальну вартість перед збереженням
+    const totalPrice = this.getTotalPrice(id);
+    room.total_price = totalPrice;
+
+    dataToSave[id] = {
+    room_id: room.room_id,
+    room_type: room.room_type,
+    bed_types: room.bed_types,
+    meals: room.meals,
+    places_per_room: room.places_per_room,
+    price: room.price,
+    margin: room.margin || 0,
+    total_price: totalPrice
+    };
+    });
+
+    // Зберігаємо дані через Livewire
+    $wire.set('data.room_prices', dataToSave, false);
+
+    // Також викликаємо збереження форми після невеликої затримки
+    setTimeout(() => {
+    // Перевіряємо, чи є кнопка збереження
+    const saveButton = document.querySelector('button[type="submit"], button[wire\\:click*="save"]');
+    if (saveButton) {
+    // Не викликаємо автоматичне збереження, просто оновлюємо дані
+    }
+    }, 100);
+    },
+    init() {
+    // Оновлюємо значення трансферів при ініціалізації
+    this.updateTransferValues();
+
+    // Слухаємо зміни в полях трансферів
+    const handleInput = (e) => {
+    if (e.target && (
+    e.target.name?.includes('transfer_price_to_tour') ||
+    e.target.name?.includes('transfer_price_from_tour') ||
+    e.target.id?.includes('transfer_price_to_tour') ||
+    e.target.id?.includes('transfer_price_from_tour')
+    )) {
+    this.updateTransferValues();
+    }
+    };
+
+    document.addEventListener('input', handleInput);
+    document.addEventListener('change', handleInput);
+
+    // Також перевіряємо через інтервал для надійності
+    setInterval(() => {
+    this.updateTransferValues();
+    }, 500);
+    },
+    getMealsLabel(meals) {
+    const labels = {
+    'breakfast': 'Сніданки',
+    'breakfast_dinner': 'Сніданок + вечеря',
+    'no_meals': 'Без харчування'
+    };
+    return labels[meals] || 'Без харчування';
+    },
+    getBedTypesLabel(bedTypes) {
+    if (!bedTypes || typeof bedTypes !== 'object') return '';
+    const single = bedTypes.single || 0;
+    const double = bedTypes.double || 0;
+    const parts = [];
+    if (single > 0) parts.push(single + ' односпальн' + (single > 1 ? 'их' : 'е'));
+    if (double > 0) parts.push(double + ' двоспальн' + (double > 1 ? 'их' : 'е'));
+    return parts.join(', ') || '—';
+    }
             };
+            window.roomPricesDataInstance = instance;
+            return instance;
         }
     </script>
     <div class="overflow-x-auto">
@@ -253,8 +334,7 @@
                                     :value="roomPrices[roomId].price || 0"
                                     x-on:input="updatePrice(roomId, $event.target.value)"
                                     class="w-full pl-6 pr-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                                    placeholder="0.00"
-                                />
+                                    placeholder="0.00" />
                             </div>
                         </td>
                         <td class="px-2 py-1.5">
@@ -267,17 +347,15 @@
                                     :value="roomPrices[roomId].margin || 0"
                                     x-on:input="updateMargin(roomId, $event.target.value)"
                                     class="w-full pl-6 pr-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded focus:ring-1 focus:ring-primary-500 focus:border-primary-500 bg-white dark:bg-gray-700 text-gray-900 dark:text-gray-100"
-                                    placeholder="0.00"
-                                />
+                                    placeholder="0.00" />
                             </div>
                         </td>
                         <td class="px-2 py-1.5">
                             <div class="relative">
                                 <span class="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-500 text-xs">₴</span>
-                                <div 
+                                <div
                                     x-text="'₴' + getTotalPrice(roomId).toFixed(2)"
-                                    class="w-full pl-6 pr-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold flex items-center"
-                                ></div>
+                                    class="w-full pl-6 pr-2 py-1 text-sm border border-gray-300 dark:border-gray-600 rounded bg-gray-50 dark:bg-gray-700 text-gray-900 dark:text-gray-100 font-semibold flex items-center"></div>
                             </div>
                         </td>
                     </tr>
@@ -291,4 +369,3 @@
     <p class="text-sm text-yellow-800 dark:text-yellow-200">Немає даних про типи номерів. Будь ласка, виконайте імпорт.</p>
 </div>
 @endif
-
