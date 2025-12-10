@@ -56,7 +56,7 @@
                         $price = (float)($place->price ?? 0);
                         $advance = (float)($place->advance ?? 0);
                         $balance = $price - $advance;
-                        return [
+                    return [
                             'id' => $place->id,
                             'place_number' => $place->place_number,
                             'meals' => $place->meals ?? 'no_meals',
@@ -117,7 +117,7 @@
                             'has_transfer_there' => false,
                             'has_transfer_back' => false,
                             'info' => '',
-                        ];
+                    ];
                     }
                     
                     $rooms[] = [
@@ -199,7 +199,7 @@
                         }
                         
                         // Якщо підтверджено або немає даних, викликаємо генерацію
-                        loading = true;
+                loading = true;
                         return $wire.call('generateScheme', true);
                     })
                     .then(() => {
@@ -208,7 +208,7 @@
                     })
                     .catch((error) => {
                         if (error !== 'Cancelled by user') {
-                            console.error('Error:', error);
+                        console.error('Error:', error);
                         }
                     })
                     .finally(() => {
@@ -329,7 +329,7 @@
                                 <h3 class="text-base font-semibold text-gray-900" x-text="category.name"></h3>
                                 <p class="mt-1 text-sm text-gray-500">
                                     <span x-text="category.rooms_count"></span> номерів · 
-                                    <span x-text="category.total_places"></span> місць
+                                <span x-text="category.total_places"></span> місць
                                 </p>
                             </div>
                             <button
@@ -380,7 +380,7 @@
                     <!-- Таблиця -->
                     <div class="overflow-x-auto" wire:ignore>
                         <table class="w-full text-xs">
-                            <thead>
+                                <thead>
                                 <tr class="border-b border-gray-300 bg-gray-50">
                                     <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Номер кімнати</th>
                                     <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Прізвище</th>
@@ -401,8 +401,8 @@
                                         </svg>
                                     </th>
                                     <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Інформація</th>
-                                </tr>
-                            </thead>
+                                    </tr>
+                                </thead>
                             <tbody class="divide-y divide-gray-200">
                                 <template x-for="(room, roomIndex) in category.rooms" :key="'room-' + roomIndex + '-' + (room.id || 'new')">
                                     <template x-for="(place, placeIndex) in room.places" :key="'place-' + placeIndex + '-' + (place.id || 'new')">
@@ -535,15 +535,15 @@
                                                     type="text"
                                                     x-model="place.info"
                                                     placeholder="—"
-                                                    readonly
-                                                    class="w-full px-1.5 py-0.5 text-xs border border-gray-300 bg-gray-50 text-gray-600 cursor-not-allowed"
+                                                    x-on:keydown.enter.prevent="$event.target.blur()"
+                                                    class="w-full px-1.5 py-0.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
                                                 />
                                             </td>
                                         </tr>
                                     </template>
-                                </template>
-                            </tbody>
-                        </table>
+                                    </template>
+                                </tbody>
+                            </table>
                     </div>
                 </div>
             </template>

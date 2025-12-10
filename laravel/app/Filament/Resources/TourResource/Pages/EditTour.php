@@ -97,6 +97,8 @@ class EditTour extends EditRecord
             'room_prices' => null,
             'transfer_price_to_tour' => null,
             'transfer_price_from_tour' => null,
+            'has_transfer_to_tour' => false,
+            'has_transfer_from_tour' => false,
         ]);
 
         // Оновлюємо запис та форму

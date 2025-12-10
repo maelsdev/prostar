@@ -218,7 +218,7 @@ class EditHotel extends EditRecord
             }
             
             // Видаляємо старі категорії (це також видалить всі items через каскадне видалення)
-            HotelSchemeCategory::where('hotel_id', $hotel->id)->delete();
+        HotelSchemeCategory::where('hotel_id', $hotel->id)->delete();
         }
         
         // Створюємо нові категорії на основі номерів
@@ -227,14 +227,14 @@ class EditHotel extends EditRecord
         
         foreach ($rooms as $room) {
             $category = HotelSchemeCategory::create([
-                'hotel_id' => $hotel->id,
-                'room_id' => $room->id,
-                'name' => $room->room_type ?? 'Без назви',
-                'price_type' => 'per_place',
-                'meals' => 'no_meals',
-                'rooms_count' => $room->quantity ?? 1,
-            ]);
-            $categoriesCreated++;
+                    'hotel_id' => $hotel->id,
+                    'room_id' => $room->id,
+                    'name' => $room->room_type ?? 'Без назви',
+                    'price_type' => 'per_place',
+                    'meals' => 'no_meals',
+                    'rooms_count' => $room->quantity ?? 1,
+                ]);
+                $categoriesCreated++;
             
             // Розраховуємо кількість місць в номері
             $bedTypes = is_array($room->bed_types) ? $room->bed_types : json_decode($room->bed_types ?? '{}', true);
@@ -407,7 +407,7 @@ class EditHotel extends EditRecord
                     $price = (float)($place->price ?? 0);
                     $advance = (float)($place->advance ?? 0);
                     $balance = $price - $advance;
-                    return [
+                return [
                         'id' => $place->id,
                         'place_number' => $place->place_number,
                         'meals' => $place->meals ?? 'no_meals',
@@ -468,7 +468,7 @@ class EditHotel extends EditRecord
                         'has_transfer_there' => false,
                         'has_transfer_back' => false,
                         'info' => '',
-                    ];
+                ];
                 }
                 
                 $rooms[] = [

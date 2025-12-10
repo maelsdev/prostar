@@ -34,6 +34,8 @@ class Tour extends Model
         'transfer_gaz66',
         'transfer_price_to_tour',
         'transfer_price_from_tour',
+        'has_transfer_to_tour',
+        'has_transfer_from_tour',
         'margin',
         'room_prices',
         'short_description',
@@ -53,6 +55,8 @@ class Tour extends Model
         'meals_dinner' => 'boolean',
         'transfer_price_to_tour' => 'decimal:2',
         'transfer_price_from_tour' => 'decimal:2',
+        'has_transfer_to_tour' => 'boolean',
+        'has_transfer_from_tour' => 'boolean',
         'margin' => 'decimal:2',
         'room_prices' => 'array',
         'price_options' => 'array',
@@ -160,7 +164,7 @@ class Tour extends Model
         $text = mb_strtolower($text, 'UTF-8');
         $text = preg_replace('/[^a-z0-9]+/', '-', $text);
         $text = trim($text, '-');
-
+        
         return $text;
     }
 

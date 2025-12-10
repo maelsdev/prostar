@@ -36,7 +36,7 @@ class TourResource extends Resource
                         Forms\Components\Tabs\Tab::make('Основна інформація')
                             ->icon('heroicon-o-information-circle')
                             ->schema([
-                                Forms\Components\Section::make('Основна інформація')
+                Forms\Components\Section::make('Основна інформація')
                     ->schema([
                         Forms\Components\TextInput::make('name')
                             ->label('Назва туру')
@@ -446,6 +446,37 @@ class TourResource extends Resource
                         Forms\Components\Tabs\Tab::make('Калькулятор туру')
                             ->icon('heroicon-o-calculator')
                             ->schema([
+                                Forms\Components\Placeholder::make('total_price_header')
+                                    ->label('Загальна вартість туру')
+                                    ->content(function ($get) {
+                                        $roomPrices = $get('room_prices') ?? [];
+                                        $hasTransferTo = (bool)($get('has_transfer_to_tour') ?? false);
+                                        $hasTransferFrom = (bool)($get('has_transfer_from_tour') ?? false);
+                                        $transferTo = $hasTransferTo ? (float)($get('transfer_price_to_tour') ?? 0) : 0;
+                                        $transferFrom = $hasTransferFrom ? (float)($get('transfer_price_from_tour') ?? 0) : 0;
+                                        
+                                        $totalPrice = 0;
+                                        if (is_array($roomPrices) && !empty($roomPrices)) {
+                                            foreach ($roomPrices as $roomData) {
+                                                if (is_array($roomData)) {
+                                                    $price = (float)($roomData['price'] ?? 0);
+                                                    $margin = (float)($roomData['margin'] ?? 0);
+                                                    $totalPrice += $price + $margin;
+                                                }
+                                            }
+                                        }
+                                        $totalPrice += $transferTo + $transferFrom;
+                                        
+                                        return new \Illuminate\Support\HtmlString(
+                                            '<div class="text-2xl font-bold text-primary-600 dark:text-primary-400">' .
+                                            '₴' . number_format($totalPrice, 2, '.', ' ') .
+                                            '</div>'
+                                        );
+                                    })
+                                    ->visible(fn ($get) => !empty($get('room_prices')))
+                                    ->columnSpanFull()
+                                    ->reactive(),
+                                
                                 Forms\Components\Section::make('Готель')
                                     ->schema([
                                         Forms\Components\Select::make('hotel_id')
@@ -470,33 +501,45 @@ class TourResource extends Resource
                                                 'room_prices' => $get('room_prices') ?? [],
                                                 'transfer_price_to_tour' => $get('transfer_price_to_tour') ?? 0,
                                                 'transfer_price_from_tour' => $get('transfer_price_from_tour') ?? 0,
+                                                'has_transfer_to_tour' => (bool)($get('has_transfer_to_tour') ?? false),
+                                                'has_transfer_from_tour' => (bool)($get('has_transfer_from_tour') ?? false),
                                             ])
                                             ->visible(fn ($get) => !empty($get('hotel_id'))),
                                     ]),
                                 
                                 Forms\Components\Section::make('Трансфери')
                                     ->schema([
-                                        Forms\Components\TextInput::make('transfer_price_to_tour')
-                                            ->label('Трансфер в тур')
-                                            ->numeric()
-                                            ->prefix('₴')
-                                            ->step(0.01)
-                                            ->minValue(0)
-                                            ->placeholder('0.00')
-                                            ->helperText('Вартість трансферу до місця призначення')
-                                            ->reactive(),
+                                        Forms\Components\View::make('filament.forms.components.tour-transfers-toggle')
+                                            ->viewData(fn ($get) => [
+                                                'has_transfer_to_tour' => (bool)($get('has_transfer_to_tour') ?? false),
+                                                'has_transfer_from_tour' => (bool)($get('has_transfer_from_tour') ?? false),
+                                            ]),
                                         
-                                        Forms\Components\TextInput::make('transfer_price_from_tour')
-                                            ->label('Трансфер з туру')
-                                            ->numeric()
-                                            ->prefix('₴')
-                                            ->step(0.01)
-                                            ->minValue(0)
-                                            ->placeholder('0.00')
-                                            ->helperText('Вартість трансферу з місця призначення')
-                                            ->reactive(),
-                                    ])
-                                    ->columns(2),
+                                        Forms\Components\Grid::make(2)
+                                            ->schema([
+                                                Forms\Components\TextInput::make('transfer_price_to_tour')
+                                                    ->label('Трансфер в тур')
+                                                    ->numeric()
+                                                    ->prefix('₴')
+                                                    ->step(0.01)
+                                                    ->minValue(0)
+                                                    ->placeholder('0.00')
+                                                    ->helperText('Вартість трансферу до місця призначення')
+                                                    ->reactive()
+                                                    ->visible(fn ($get) => $get('has_transfer_to_tour') ?? false),
+                                                
+                                                Forms\Components\TextInput::make('transfer_price_from_tour')
+                                                    ->label('Трансфер з туру')
+                                                    ->numeric()
+                                                    ->prefix('₴')
+                                                    ->step(0.01)
+                                                    ->minValue(0)
+                                                    ->placeholder('0.00')
+                                                    ->helperText('Вартість трансферу з місця призначення')
+                                                    ->reactive()
+                                                    ->visible(fn ($get) => $get('has_transfer_from_tour') ?? false),
+                                            ]),
+                                    ]),
                                 
                                 Forms\Components\Section::make('Дії')
                                     ->schema([

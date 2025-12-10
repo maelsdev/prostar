@@ -88,9 +88,34 @@
                     this.updateTransferValues();
                     const roomPrice = parseFloat(this.roomPrices[roomId].price) || 0;
                     const roomMargin = parseFloat(this.roomPrices[roomId].margin) || 0;
-                    const transferTo = parseFloat(this.transferTo) || 0;
-                    const transferFrom = parseFloat(this.transferFrom) || 0;
+                    
+                    // Перевіряємо перемикачі трансферів
+                    const hasTransferTo = this.getTransferToggle('has_transfer_to_tour');
+                    const hasTransferFrom = this.getTransferToggle('has_transfer_from_tour');
+                    
+                    const transferTo = hasTransferTo ? (parseFloat(this.transferTo) || 0) : 0;
+                    const transferFrom = hasTransferFrom ? (parseFloat(this.transferFrom) || 0) : 0;
+                    
                     return roomPrice + roomMargin + transferTo + transferFrom;
+                },
+                getTransferToggle(fieldName) {
+                    // Шукаємо перемикач через Alpine.js або Livewire
+                    const toggleComponent = document.querySelector(`[x-data*="hasTransferTo"], [x-data*="hasTransferFrom"]`);
+                    if (toggleComponent && toggleComponent.__x) {
+                        const alpineData = toggleComponent.__x.$data;
+                        if (fieldName === 'has_transfer_to_tour') {
+                            return alpineData.hasTransferTo || false;
+                        } else if (fieldName === 'has_transfer_from_tour') {
+                            return alpineData.hasTransferFrom || false;
+                        }
+                    }
+                    // Якщо не знайдено через Alpine, шукаємо через Livewire
+                    try {
+                        const livewireData = $wire.get('data.' + fieldName);
+                        return livewireData || false;
+                    } catch (e) {
+                        return false;
+                    }
                 },
                 updateTransferValues() {
                     const transferToInput = document.querySelector('input[wire\\:model*="transfer_price_to_tour"], input[name*="transfer_price_to_tour"]');
