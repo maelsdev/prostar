@@ -28,6 +28,7 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->brandName('PROSTAR')
+            ->favicon('https://static.wixstatic.com/media/8b9266_6ed838e5a4f043d29a1c7a0cc48d3043~mv2.png/v1/fill/w_32,h_32,lg_1,usm_0.66_1.00_0.01/8b9266_6ed838e5a4f043d29a1c7a0cc48d3043~mv2.png')
             ->colors([
                 'primary' => Color::hex('#0071e3'), // Акцентний колір проєкту
                 'danger' => Color::Red,
