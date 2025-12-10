@@ -752,7 +752,7 @@
                         Object.keys(data.errors).forEach(field => {
                             const errorElement = document.getElementById('error_' + field);
                             const inputElement = document.getElementById('booking_' + field);
-                            if (errorElement) {
+                            if (errorElement && data.errors[field] && Array.isArray(data.errors[field]) && data.errors[field].length > 0) {
                                 errorElement.textContent = data.errors[field][0];
                             }
                             if (inputElement) {
