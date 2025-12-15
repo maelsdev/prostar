@@ -36,12 +36,22 @@ class Tour extends Model
         'transfer_price_from_tour',
         'has_transfer_to_tour',
         'has_transfer_from_tour',
+        'train_price_to',
+        'train_price_from',
         'margin',
         'room_prices',
         'short_description',
         'full_description',
         'price_options',
         'is_booking_enabled',
+        'transport_items',
+        'calculator_people_count',
+        'calculator_hotel_id',
+        'calculator_nights_count',
+        'hotel_options',
+        'calculator_room_types',
+        'calculator_transfers',
+        'calculator_additional_costs',
     ];
 
     protected $casts = [
@@ -58,10 +68,17 @@ class Tour extends Model
         'transfer_price_from_tour' => 'decimal:2',
         'has_transfer_to_tour' => 'boolean',
         'has_transfer_from_tour' => 'boolean',
+        'train_price_to' => 'decimal:2',
+        'train_price_from' => 'decimal:2',
         'margin' => 'decimal:2',
         'room_prices' => 'array',
         'price_options' => 'array',
         'is_booking_enabled' => 'boolean',
+        'transport_items' => 'array',
+        'hotel_options' => 'array',
+        'calculator_room_types' => 'array',
+        'calculator_transfers' => 'array',
+        'calculator_additional_costs' => 'array',
     ];
 
     /**
@@ -86,6 +103,14 @@ class Tour extends Model
     public function hotel()
     {
         return $this->belongsTo(Hotel::class);
+    }
+
+    /**
+     * Отримати готель для калькулятора
+     */
+    public function calculatorHotel()
+    {
+        return $this->belongsTo(Hotel::class, 'calculator_hotel_id');
     }
 
     /**

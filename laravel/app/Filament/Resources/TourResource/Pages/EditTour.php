@@ -6,7 +6,6 @@ use App\Filament\Resources\TourResource;
 use App\Models\Hotel;
 use Filament\Actions;
 use Filament\Resources\Pages\EditRecord;
-use Filament\Notifications\Notification;
 
 class EditTour extends EditRecord
 {
@@ -19,97 +18,88 @@ class EditTour extends EditRecord
         ];
     }
 
-    public function importHotelRooms($hotelId): void
+    /**
+     * Завантажити типи номерів готелю при відкритті форми
+     */
+    protected function mutateFormDataBeforeFill(array $data): array
     {
-        if (!$hotelId) {
-            Notification::make()
-                ->title('Помилка')
-                ->body('Будь ласка, оберіть готель')
-                ->danger()
-                ->send();
-            return;
+        if (!empty($data['calculator_hotel_id'])) {
+            $hotel = Hotel::with('rooms')->find($data['calculator_hotel_id']);
+            if ($hotel) {
+                // Збережені типи з цінами, маржею та кількістю
+                $savedTypes = $data['calculator_room_types'] ?? [];
+                $savedData = [];
+                foreach ($savedTypes as $savedType) {
+                    if (isset($savedType['places'])) {
+                        $savedData[$savedType['places']] = [
+                            'price_per_place' => $savedType['price_per_place'] ?? 0,
+                            'margin' => $savedType['margin'] ?? 0,
+                            'quantity' => $savedType['quantity'] ?? 0,
+                        ];
+                    }
+                }
+                
+                // Групуємо номери за кількістю місць та рахуємо кількість
+                $roomTypes = [];
+                foreach ($hotel->rooms as $room) {
+                    $places = $room->places_per_room;
+                    if ($places > 0) {
+                        if (!isset($roomTypes[$places])) {
+                            $savedPrice = isset($savedData[$places]) ? (float)($savedData[$places]['price_per_place'] ?? 0) : 0;
+                            $savedMargin = isset($savedData[$places]) ? (float)($savedData[$places]['margin'] ?? 0) : 0;
+                            $roomTypes[$places] = [
+                                'places' => $places,
+                                'quantity' => 0,
+                                'price_per_place' => $savedPrice,
+                                'margin' => $savedMargin,
+                            ];
+                        }
+                        // Додаємо кількість номерів цього типу
+                        $roomTypes[$places]['quantity'] += ($room->quantity ?? 1);
+                    }
+                }
+                
+                // Якщо є збережені дані, використовуємо збережену кількість (якщо вона є)
+                foreach ($savedData as $places => $saved) {
+                    if (isset($roomTypes[$places]) && isset($saved['quantity']) && $saved['quantity'] > 0) {
+                        $roomTypes[$places]['quantity'] = (int)$saved['quantity'];
+                    }
+                }
+                
+                // Сортуємо за кількістю місць
+                ksort($roomTypes);
+                
+                $data['calculator_room_types'] = array_values($roomTypes);
+            }
         }
-
-        $hotel = Hotel::with('rooms')->find($hotelId);
         
-        if (!$hotel) {
-            Notification::make()
-                ->title('Помилка')
-                ->body('Готель не знайдено')
-                ->danger()
-                ->send();
-            return;
-        }
-
-        $rooms = $hotel->rooms;
-        
-        if ($rooms->isEmpty()) {
-            Notification::make()
-                ->title('Увага')
-                ->body('У вибраного готелю немає номерів')
-                ->warning()
-                ->send();
-            return;
-        }
-
-        // Формуємо масив вартостей номерів
-        $roomPrices = [];
-        foreach ($rooms as $room) {
-            $roomPrices[$room->id] = [
-                'room_id' => $room->id,
-                'room_type' => $room->room_type,
-                'bed_types' => $room->bed_types,
-                'meals' => $room->meals,
-                'places_per_room' => $room->places_per_room,
-                'price' => 0, // Початкова вартість
-            ];
-        }
-
-        // Оновлюємо запис туру
-        $this->record->update([
-            'hotel_id' => $hotelId,
-            'room_prices' => $roomPrices,
-        ]);
-
-        // Оновлюємо запис
-        $this->record->refresh();
-        
-        // Оновлюємо форму з актуальними даними
-        $formData = $this->record->toArray();
-        // Переконаємося, що room_prices це масив
-        if (is_string($formData['room_prices'] ?? null)) {
-            $formData['room_prices'] = json_decode($formData['room_prices'], true);
-        }
-        $this->form->fill($formData);
-
-        Notification::make()
-            ->title('Успішно')
-            ->body('Типи номерів імпортовано. Заповніть вартості проживання.')
-            ->success()
-            ->send();
+        return $data;
     }
 
-    public function clearCalculatorForm(): void
+    /**
+     * Обробити дані перед збереженням
+     */
+    protected function mutateFormDataBeforeSave(array $data): array
     {
-        // Очищаємо поля калькулятора
-        $this->record->update([
-            'hotel_id' => null,
-            'room_prices' => null,
-            'transfer_price_to_tour' => null,
-            'transfer_price_from_tour' => null,
-            'has_transfer_to_tour' => false,
-            'has_transfer_from_tour' => false,
-        ]);
-
-        // Оновлюємо запис та форму
-        $this->record->refresh();
-        $this->form->fill($this->record->toArray());
-        $this->dispatch('$refresh');
-
-        Notification::make()
-            ->title('Успішно')
-            ->body('Форма калькулятора очищена')
-            ->success()
-            ->send();
+        // Переконатися, що calculator_room_types має правильні типи даних
+        if (isset($data['calculator_room_types']) && is_array($data['calculator_room_types'])) {
+            foreach ($data['calculator_room_types'] as &$roomType) {
+                if (isset($roomType['places'])) {
+                    $roomType['places'] = (int)$roomType['places'];
+                }
+                if (isset($roomType['quantity'])) {
+                    $roomType['quantity'] = (int)$roomType['quantity'];
+                }
+                if (isset($roomType['price_per_place'])) {
+                    $roomType['price_per_place'] = (float)$roomType['price_per_place'];
+                }
+                if (isset($roomType['margin'])) {
+                    $roomType['margin'] = (float)$roomType['margin'];
+                }
+            }
+            unset($roomType);
+        }
+        
+        return $data;
     }
 }

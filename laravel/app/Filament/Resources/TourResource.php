@@ -457,106 +457,454 @@ class TourResource extends Resource
                         Forms\Components\Tabs\Tab::make('Калькулятор туру')
                             ->icon('heroicon-o-calculator')
                             ->schema([
-                                Forms\Components\Placeholder::make('total_price_header')
-                                    ->label('Загальна вартість туру')
-                                    ->content(function ($get) {
-                                        $roomPrices = $get('room_prices') ?? [];
-                                        $hasTransferTo = (bool)($get('has_transfer_to_tour') ?? false);
-                                        $hasTransferFrom = (bool)($get('has_transfer_from_tour') ?? false);
-                                        $transferTo = $hasTransferTo ? (float)($get('transfer_price_to_tour') ?? 0) : 0;
-                                        $transferFrom = $hasTransferFrom ? (float)($get('transfer_price_from_tour') ?? 0) : 0;
+                                // Компактна шапка з варіантами ціни
+                                Forms\Components\Placeholder::make('price_variants_header')
+                                    ->label('')
+                                    ->content(function ($get, $record) {
+                                        $roomTypes = $get('calculator_room_types') ?? [];
                                         
-                                        $totalPrice = 0;
-                                        if (is_array($roomPrices) && !empty($roomPrices)) {
-                                            foreach ($roomPrices as $roomData) {
-                                                if (is_array($roomData)) {
-                                                    $price = (float)($roomData['price'] ?? 0);
-                                                    $margin = (float)($roomData['margin'] ?? 0);
-                                                    $totalPrice += $price + $margin;
+                                        if (empty($roomTypes)) {
+                                            return new \Illuminate\Support\HtmlString('<div class="text-xs text-gray-400 py-1">Оберіть готель</div>');
+                                        }
+                                        
+                                        // Розраховуємо вартість трансферів на 1 особу
+                                        $transfers = $get('calculator_transfers') ?? [];
+                                        $transferCostPerPerson = 0;
+                                        
+                                        if (is_array($transfers)) {
+                                            foreach ($transfers as $transfer) {
+                                                if (!is_array($transfer)) continue;
+                                                
+                                                $transferType = $transfer['transfer_type'] ?? null;
+                                                
+                                                // Для потяга
+                                                if ($transferType === 'train') {
+                                                    $trainToPrice = (float)($transfer['train_to_price'] ?? 0);
+                                                    $trainToBooking = (float)($transfer['train_to_booking'] ?? 0);
+                                                    $trainFromPrice = (float)($transfer['train_from_price'] ?? 0);
+                                                    $trainFromBooking = (float)($transfer['train_from_booking'] ?? 0);
+                                                    $transferCostPerPerson += $trainToPrice + $trainToBooking + $trainFromPrice + $trainFromBooking;
+                                                }
+                                                // Для ГАЗ 66
+                                                elseif ($transferType === 'gaz66') {
+                                                    $gaz66ToPrice = (float)($transfer['gaz66_to_price'] ?? 0);
+                                                    $gaz66ToSeats = (float)($transfer['gaz66_to_seats'] ?? 1);
+                                                    $gaz66FromPrice = (float)($transfer['gaz66_from_price'] ?? 0);
+                                                    $gaz66FromSeats = (float)($transfer['gaz66_from_seats'] ?? 1);
+                                                    
+                                                    if ($gaz66ToSeats > 0) {
+                                                        $transferCostPerPerson += $gaz66ToPrice / $gaz66ToSeats;
+                                                    }
+                                                    if ($gaz66FromSeats > 0) {
+                                                        $transferCostPerPerson += $gaz66FromPrice / $gaz66FromSeats;
+                                                    }
                                                 }
                                             }
                                         }
-                                        $totalPrice += $transferTo + $transferFrom;
                                         
-                                        return new \Illuminate\Support\HtmlString(
-                                            '<div class="text-2xl font-bold text-primary-600 dark:text-primary-400">' .
-                                            '₴' . number_format($totalPrice, 2, '.', ' ') .
-                                            '</div>'
-                                        );
+                                        // Отримуємо кількість ночей з даних туру
+                                        $nightsCount = (int)($get('nights_in_hotel') ?? $record?->nights_in_hotel ?? 1);
+                                        if ($nightsCount < 1) {
+                                            $nightsCount = 1;
+                                        }
+                                        
+                                        // Розраховуємо загальну вартість додаткових витрат
+                                        $additionalCosts = $get('calculator_additional_costs') ?? [];
+                                        $totalAdditionalCosts = 0;
+                                        if (is_array($additionalCosts)) {
+                                            foreach ($additionalCosts as $cost) {
+                                                if (is_array($cost) && isset($cost['cost'])) {
+                                                    $totalAdditionalCosts += (float)($cost['cost'] ?? 0);
+                                                }
+                                            }
+                                        }
+                                        
+                                        $variants = [];
+                                        foreach ($roomTypes as $type) {
+                                            if (!is_array($type)) continue;
+                                            
+                                            $places = (int)($type['places'] ?? 0);
+                                            $price = (float)($type['price_per_place'] ?? 0);
+                                            $margin = (float)($type['margin'] ?? 0);
+                                            
+                                            // Розрахунок: (ціна_за_місце * кількість_ночей) + маржа + трансфери + додаткові витрати
+                                            $hotelCost = $price * $nightsCount;
+                                            $total = $hotelCost + $margin + $transferCostPerPerson + $totalAdditionalCosts;
+                                            
+                                            if ($places > 0 && ($price > 0 || $margin > 0 || $transferCostPerPerson > 0)) {
+                                                $placesLabel = match($places) {
+                                                    1 => '1-місне',
+                                                    2 => '2-місне',
+                                                    3 => '3-місне',
+                                                    4 => '4-місне',
+                                                    5 => '5-місне',
+                                                    default => $places . '-місне',
+                                                };
+                                                
+                                                $variants[] = '<span class="text-xs">' . e($placesLabel) . ' <strong class="text-primary-600">' . number_format($total, 0, '.', '') . ' грн</strong></span>';
+                                            }
+                                        }
+                                        
+                                        $html = '<div class="space-y-1 py-1">';
+                                        
+                                        // Показуємо загальну вартість трансферів окремо
+                                        if ($transferCostPerPerson > 0) {
+                                            $html .= '<div class="text-xs border-b border-gray-200 dark:border-gray-700 pb-1 mb-1">';
+                                            $html .= '<span class="text-gray-600 dark:text-gray-400">Трансфери:</span> ';
+                                            $html .= '<strong class="text-primary-600 font-semibold">' . number_format($transferCostPerPerson, 0, '.', '') . ' грн</strong>';
+                                            $html .= '</div>';
+                                        }
+                                        
+                                        // Показуємо загальну вартість додаткових витрат окремо
+                                        if ($totalAdditionalCosts > 0) {
+                                            $html .= '<div class="text-xs border-b border-gray-200 dark:border-gray-700 pb-1 mb-1">';
+                                            $html .= '<span class="text-gray-600 dark:text-gray-400">Додаткові витрати:</span> ';
+                                            $html .= '<strong class="text-primary-600 font-semibold">' . number_format($totalAdditionalCosts, 0, '.', '') . ' грн</strong>';
+                                            $html .= '</div>';
+                                        }
+                                        
+                                        // Показуємо варіанти розміщення
+                                        if (empty($variants)) {
+                                            $html .= '<div class="text-xs text-gray-400">Вкажіть ціни</div>';
+                                        } else {
+                                            $html .= '<div class="flex flex-wrap gap-x-3 gap-y-0.5 text-xs">' . implode(' | ', $variants) . '</div>';
+                                        }
+                                        
+                                        $html .= '</div>';
+                                        
+                                        return new \Illuminate\Support\HtmlString($html);
                                     })
-                                    ->visible(fn ($get) => !empty($get('room_prices')))
-                                    ->columnSpanFull()
-                                    ->reactive(),
+                                    ->live()
+                                    ->key(fn ($get, $record) => md5(json_encode([
+                                        $get('calculator_room_types'),
+                                        $get('calculator_transfers'),
+                                        $get('calculator_additional_costs'),
+                                        $get('nights_in_hotel') ?? $record?->nights_in_hotel,
+                                    ])))
+                                    ->columnSpanFull(),
                                 
-                                Forms\Components\Section::make('Готель')
-                                    ->schema([
-                                        Forms\Components\Select::make('hotel_id')
-                                            ->label('Оберіть готель')
-                                            ->options(Hotel::all()->pluck('name', 'id'))
-                                            ->searchable()
-                                            ->placeholder('Оберіть готель зі списку')
-                                            ->helperText('Оберіть готель для імпорту типів номерів')
-                                            ->reactive()
-                                            ->afterStateUpdated(function ($state, callable $set) {
-                                                // Очищаємо room_prices при зміні готелю
-                                                $set('room_prices', null);
-                                            })
-                                            ->visible(fn ($get) => empty($get('room_prices'))),
+                                Forms\Components\Select::make('calculator_hotel_id')
+                                    ->label('Готель')
+                                    ->relationship('calculatorHotel', 'name')
+                                    ->searchable()
+                                    ->preload()
+                                    ->reactive()
+                                    ->extraAttributes(['class' => 'text-sm'])
+                                    ->afterStateUpdated(function ($state, callable $set, callable $get) {
+                                        if (!$state) {
+                                            $set('calculator_room_types', []);
+                                            return;
+                                        }
                                         
-                                        Forms\Components\View::make('filament.forms.components.import-hotel-rooms-button')
-                                            ->visible(fn ($get) => !empty($get('hotel_id')) && empty($get('room_prices'))),
+                                        $hotel = \App\Models\Hotel::with('rooms')->find($state);
+                                        if (!$hotel) {
+                                            $set('calculator_room_types', []);
+                                            return;
+                                        }
                                         
-                                        Forms\Components\View::make('filament.forms.components.tour-room-prices')
-                                            ->viewData(fn ($get) => [
-                                                'hotel_id' => $get('hotel_id'),
-                                                'room_prices' => $get('room_prices') ?? [],
-                                                'transfer_price_to_tour' => $get('transfer_price_to_tour') ?? 0,
-                                                'transfer_price_from_tour' => $get('transfer_price_from_tour') ?? 0,
-                                                'has_transfer_to_tour' => (bool)($get('has_transfer_to_tour') ?? false),
-                                                'has_transfer_from_tour' => (bool)($get('has_transfer_from_tour') ?? false),
-                                            ])
-                                            ->visible(fn ($get) => !empty($get('hotel_id'))),
-                                    ]),
+                                        // Завжди починаємо з нульових значень при виборі готелю
+                                        $roomTypes = [];
+                                        foreach ($hotel->rooms as $room) {
+                                            $places = $room->places_per_room;
+                                            if ($places > 0) {
+                                                if (!isset($roomTypes[$places])) {
+                                                    $roomTypes[$places] = [
+                                                        'places' => $places,
+                                                        'quantity' => 0,
+                                                        'price_per_place' => 0,
+                                                        'margin' => 0,
+                                                    ];
+                                                }
+                                                $roomTypes[$places]['quantity'] += ($room->quantity ?? 1);
+                                            }
+                                        }
+                                        
+                                        ksort($roomTypes);
+                                        $set('calculator_room_types', array_values($roomTypes));
+                                    })
+                                    ->columnSpanFull(),
                                 
-                                Forms\Components\Section::make('Трансфери')
+                                Forms\Components\Repeater::make('calculator_room_types')
+                                    ->label('')
                                     ->schema([
-                                        Forms\Components\View::make('filament.forms.components.tour-transfers-toggle')
-                                            ->viewData(fn ($get) => [
-                                                'has_transfer_to_tour' => (bool)($get('has_transfer_to_tour') ?? false),
-                                                'has_transfer_from_tour' => (bool)($get('has_transfer_from_tour') ?? false),
+                                        Forms\Components\Grid::make(5)
+                                            ->schema([
+                                                Forms\Components\Placeholder::make('room_type_label')
+                                                    ->label('Тип номера')
+                                                    ->content(function ($get) {
+                                                        $places = (int)($get('places') ?? 0);
+                                                        if ($places > 0) {
+                                                            $label = match($places) {
+                                                                1 => 'Одномісний',
+                                                                2 => 'Двомісний',
+                                                                3 => 'Тримісний',
+                                                                4 => 'Чотиримісний',
+                                                                5 => 'П\'ятимісний',
+                                                                default => $places . '-місний',
+                                                            };
+                                                            return new \Illuminate\Support\HtmlString('<div class="text-xs py-1 px-1">' . e($label) . '</div>');
+                                                        }
+                                                        return new \Illuminate\Support\HtmlString('<div class="text-xs py-1 px-1 text-gray-400">-</div>');
+                                                    })
+                                                    ->columnSpan(1),
+                                                
+                                                Forms\Components\TextInput::make('places')
+                                                    ->label('Місць')
+                                                    ->numeric()
+                                                    ->disabled()
+                                                    ->dehydrated()
+                                                    ->extraInputAttributes(['class' => 'text-xs py-1 px-1 h-7'])
+                                                    ->columnSpan(1),
+                                                
+                                                Forms\Components\TextInput::make('quantity')
+                                                    ->label('Кількість')
+                                                    ->numeric()
+                                                    ->disabled()
+                                                    ->dehydrated()
+                                                    ->extraInputAttributes(['class' => 'text-xs py-1 px-1 h-7'])
+                                                    ->columnSpan(1),
+                                                
+                                                Forms\Components\TextInput::make('price_per_place')
+                                                    ->label('Ціна/місце')
+                                                    ->numeric()
+                                                    ->prefix('₴')
+                                                    ->step(0.01)
+                                                    ->minValue(0)
+                                                    ->default(0)
+                                                    ->reactive()
+                                                    ->extraInputAttributes(['class' => 'text-xs py-1 px-1 h-7'])
+                                                    ->columnSpan(1),
+                                                
+                                                Forms\Components\TextInput::make('margin')
+                                                    ->label('Маржа')
+                                                    ->numeric()
+                                                    ->prefix('₴')
+                                                    ->step(0.01)
+                                                    ->minValue(0)
+                                                    ->default(0)
+                                                    ->reactive()
+                                                    ->extraInputAttributes(['class' => 'text-xs py-1 px-1 h-7'])
+                                                    ->columnSpan(1),
                                             ]),
+                                    ])
+                                    ->defaultItems(0)
+                                    ->disableItemCreation()
+                                    ->disableItemDeletion()
+                                    ->itemLabel(function (array $state): ?string {
+                                        $places = (int)($state['places'] ?? 0);
+                                        return $places > 0 ? $places . ' місць' : null;
+                                    })
+                                    ->visible(fn ($get) => !empty($get('calculator_hotel_id')))
+                                    ->columnSpanFull(),
+                                
+                                Forms\Components\Repeater::make('calculator_transfers')
+                                    ->label('Трансфери')
+                                    ->schema([
+                                        Forms\Components\Select::make('transfer_type')
+                                            ->label('Тип трансферу')
+                                            ->options([
+                                                'train' => 'Потяг',
+                                                'gaz66' => 'Газ 66',
+                                            ])
+                                            ->required()
+                                            ->reactive()
+                                            ->columnSpanFull(),
                                         
+                                        // Поля для потяга
+                                        Forms\Components\Section::make('Потяг туди')
+                                            ->schema([
+                                                Forms\Components\Grid::make(3)
+                                                    ->schema([
+                                                        Forms\Components\TextInput::make('train_to_number')
+                                                            ->label('Номер потяга')
+                                                            ->maxLength(255)
+                                                            ->columnSpan(1),
+                                                        
+                                                        Forms\Components\TextInput::make('train_to_booking')
+                                                            ->label('Бронювання')
+                                                            ->numeric()
+                                                            ->prefix('₴')
+                                                            ->step(0.01)
+                                                            ->minValue(0)
+                                                            ->default(0)
+                                                            ->reactive()
+                                                            ->columnSpan(1),
+                                                        
+                                                        Forms\Components\TextInput::make('train_to_price')
+                                                            ->label('Ціна за квиток')
+                                                            ->numeric()
+                                                            ->prefix('₴')
+                                                            ->step(0.01)
+                                                            ->minValue(0)
+                                                            ->default(0)
+                                                            ->reactive()
+                                                            ->columnSpan(1),
+                                                    ]),
+                                            ])
+                                            ->visible(fn ($get) => $get('transfer_type') === 'train')
+                                            ->collapsible(),
+                                        
+                                        Forms\Components\Section::make('Потяг назад')
+                                            ->schema([
+                                                Forms\Components\Grid::make(3)
+                                                    ->schema([
+                                                        Forms\Components\TextInput::make('train_from_number')
+                                                            ->label('Номер потяга')
+                                                            ->maxLength(255)
+                                                            ->columnSpan(1),
+                                                        
+                                                        Forms\Components\TextInput::make('train_from_booking')
+                                                            ->label('Бронювання')
+                                                            ->numeric()
+                                                            ->prefix('₴')
+                                                            ->step(0.01)
+                                                            ->minValue(0)
+                                                            ->default(0)
+                                                            ->reactive()
+                                                            ->columnSpan(1),
+                                                        
+                                                        Forms\Components\TextInput::make('train_from_price')
+                                                            ->label('Ціна за квиток')
+                                                            ->numeric()
+                                                            ->prefix('₴')
+                                                            ->step(0.01)
+                                                            ->minValue(0)
+                                                            ->default(0)
+                                                            ->reactive()
+                                                            ->columnSpan(1),
+                                                    ]),
+                                            ])
+                                            ->visible(fn ($get) => $get('transfer_type') === 'train')
+                                            ->collapsible(),
+                                        
+                                        // Поля для ГАЗ 66
+                                        Forms\Components\Section::make('ГАЗ 66 туди')
+                                            ->schema([
+                                                Forms\Components\Grid::make(2)
+                                                    ->schema([
+                                                        Forms\Components\TextInput::make('gaz66_to_price')
+                                                            ->label('Вартість')
+                                                            ->numeric()
+                                                            ->prefix('₴')
+                                                            ->step(0.01)
+                                                            ->minValue(0)
+                                                            ->default(0)
+                                                            ->reactive()
+                                                            ->columnSpan(1),
+                                                        
+                                                        Forms\Components\TextInput::make('gaz66_to_seats')
+                                                            ->label('Кількість місць')
+                                                            ->numeric()
+                                                            ->minValue(1)
+                                                            ->default(1)
+                                                            ->reactive()
+                                                            ->columnSpan(1),
+                                                    ]),
+                                                
+                                                Forms\Components\Placeholder::make('gaz66_to_per_person')
+                                                    ->label('Вартість за 1 місце')
+                                                    ->content(function ($get) {
+                                                        $price = (float)($get('gaz66_to_price') ?? 0);
+                                                        $seats = (float)($get('gaz66_to_seats') ?? 1);
+                                                        $perPerson = $seats > 0 ? $price / $seats : 0;
+                                                        return new \Illuminate\Support\HtmlString(
+                                                            '<div class="text-xs font-semibold text-primary-600">₴' . number_format($perPerson, 2, '.', '') . '</div>'
+                                                        );
+                                                    })
+                                                    ->reactive()
+                                                    ->columnSpanFull(),
+                                            ])
+                                            ->visible(fn ($get) => $get('transfer_type') === 'gaz66')
+                                            ->collapsible(),
+                                        
+                                        Forms\Components\Section::make('ГАЗ 66 назад')
+                                            ->schema([
+                                                Forms\Components\Grid::make(2)
+                                                    ->schema([
+                                                        Forms\Components\TextInput::make('gaz66_from_price')
+                                                            ->label('Вартість')
+                                                            ->numeric()
+                                                            ->prefix('₴')
+                                                            ->step(0.01)
+                                                            ->minValue(0)
+                                                            ->default(0)
+                                                            ->reactive()
+                                                            ->columnSpan(1),
+                                                        
+                                                        Forms\Components\TextInput::make('gaz66_from_seats')
+                                                            ->label('Кількість місць')
+                                                            ->numeric()
+                                                            ->minValue(1)
+                                                            ->default(1)
+                                                            ->reactive()
+                                                            ->columnSpan(1),
+                                                    ]),
+                                                
+                                                Forms\Components\Placeholder::make('gaz66_from_per_person')
+                                                    ->label('Вартість за 1 місце')
+                                                    ->content(function ($get) {
+                                                        $price = (float)($get('gaz66_from_price') ?? 0);
+                                                        $seats = (float)($get('gaz66_from_seats') ?? 1);
+                                                        $perPerson = $seats > 0 ? $price / $seats : 0;
+                                                        return new \Illuminate\Support\HtmlString(
+                                                            '<div class="text-xs font-semibold text-primary-600">₴' . number_format($perPerson, 2, '.', '') . '</div>'
+                                                        );
+                                                    })
+                                                    ->reactive()
+                                                    ->columnSpanFull(),
+                                            ])
+                                            ->visible(fn ($get) => $get('transfer_type') === 'gaz66')
+                                            ->collapsible(),
+                                    ])
+                                    ->defaultItems(0)
+                                    ->addActionLabel('Додати трансфер')
+                                    ->itemLabel(function (array $state): ?string {
+                                        $type = $state['transfer_type'] ?? null;
+                                        if ($type === 'train') {
+                                            return 'Потяг';
+                                        } elseif ($type === 'gaz66') {
+                                            return 'ГАЗ 66';
+                                        }
+                                        return 'Новий трансфер';
+                                    })
+                                    ->collapsible()
+                                    ->columnSpanFull(),
+                                
+                                Forms\Components\Repeater::make('calculator_additional_costs')
+                                    ->label('Додаткові витрати')
+                                    ->schema([
                                         Forms\Components\Grid::make(2)
                                             ->schema([
-                                                Forms\Components\TextInput::make('transfer_price_to_tour')
-                                                    ->label('Трансфер в тур')
-                                                    ->numeric()
-                                                    ->prefix('₴')
-                                                    ->step(0.01)
-                                                    ->minValue(0)
-                                                    ->placeholder('0.00')
-                                                    ->helperText('Вартість трансферу до місця призначення')
-                                                    ->reactive()
-                                                    ->visible(fn ($get) => $get('has_transfer_to_tour') ?? false),
+                                                Forms\Components\TextInput::make('name')
+                                                    ->label('Назва')
+                                                    ->required()
+                                                    ->maxLength(255)
+                                                    ->columnSpan(1),
                                                 
-                                                Forms\Components\TextInput::make('transfer_price_from_tour')
-                                                    ->label('Трансфер з туру')
+                                                Forms\Components\TextInput::make('cost')
+                                                    ->label('Вартість')
                                                     ->numeric()
                                                     ->prefix('₴')
                                                     ->step(0.01)
                                                     ->minValue(0)
-                                                    ->placeholder('0.00')
-                                                    ->helperText('Вартість трансферу з місця призначення')
+                                                    ->default(0)
+                                                    ->required()
                                                     ->reactive()
-                                                    ->visible(fn ($get) => $get('has_transfer_from_tour') ?? false),
+                                                    ->columnSpan(1),
                                             ]),
-                                    ]),
-                                
-                                Forms\Components\Section::make('Дії')
-                                    ->schema([
-                                        Forms\Components\View::make('filament.forms.components.clear-calculator-button'),
                                     ])
-                                    ->collapsible(false),
+                                    ->defaultItems(0)
+                                    ->addActionLabel('Додати витрату')
+                                    ->itemLabel(function (array $state): ?string {
+                                        $name = $state['name'] ?? null;
+                                        $cost = (float)($state['cost'] ?? 0);
+                                        if ($name) {
+                                            return $name . ($cost > 0 ? ' (' . number_format($cost, 0, '.', '') . ' грн)' : '');
+                                        }
+                                        return 'Нова витрата';
+                                    })
+                                    ->collapsible()
+                                    ->columnSpanFull(),
                             ])
                             ->visible(fn ($record) => $record && $record->exists),
                     ])
