@@ -114,6 +114,14 @@ class Tour extends Model
     }
 
     /**
+     * Отримати CRM таблицю
+     */
+    public function crmTable()
+    {
+        return $this->hasOne(CrmTable::class);
+    }
+
+    /**
      * Транслітерація українського тексту в латиницю для slug
      */
     public static function transliterate(string $text): string

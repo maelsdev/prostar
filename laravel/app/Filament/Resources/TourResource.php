@@ -907,6 +907,404 @@ class TourResource extends Resource
                                     ->columnSpanFull(),
                             ])
                             ->visible(fn ($record) => $record && $record->exists),
+                        
+                        Forms\Components\Tabs\Tab::make('СРМ')
+                            ->icon('heroicon-o-briefcase')
+                            ->schema([
+                                Forms\Components\Section::make('CRM таблиця')
+                                    ->schema([
+                                        Forms\Components\Placeholder::make('crm_info')
+                                            ->label('')
+                                            ->content(function ($get, $record) {
+                                                // Перевіряємо чи існує CRM таблиця
+                                                $hasCrm = false;
+                                                try {
+                                                    if ($record && isset($record->id)) {
+                                                        $hasCrm = \App\Models\CrmTable::where('tour_id', $record->id)->exists();
+                                                    }
+                                                } catch (\Exception $e) {
+                                                    // Ігноруємо помилку
+                                                }
+                                                
+                                                if ($hasCrm) {
+                                                    return new \Illuminate\Support\HtmlString(
+                                                        '<div class="text-center py-4">
+                                                            <p class="text-sm text-gray-600">CRM таблиця створена. Дані відображаються нижче.</p>
+                                                        </div>'
+                                                    );
+                                                }
+                                                
+                                                return new \Illuminate\Support\HtmlString(
+                                                    '<div class="text-center py-12">
+                                                        <div class="max-w-md mx-auto">
+                                                            <svg class="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                                            </svg>
+                                                            <h3 class="mt-2 text-sm font-medium text-gray-900">CRM таблиця не створена</h3>
+                                                            <p class="mt-1 text-sm text-gray-500">Натисніть кнопку "Згенерувати СРМ" нижче для створення таблиці зі схеми готелю.</p>
+                                                        </div>
+                                                    </div>'
+                                                );
+                                            })
+                                            ->columnSpanFull(),
+                                        
+                                        Forms\Components\Actions::make([
+                                            Forms\Components\Actions\Action::make('generate_crm')
+                                                ->label('Згенерувати СРМ')
+                                                ->icon('heroicon-o-sparkles')
+                                                ->color('success')
+                                                ->visible(function ($get, $record) {
+                                                    if (!$record || !isset($record->id)) {
+                                                        return false;
+                                                    }
+                                                    
+                                                    // Перевіряємо чи вже згенерована CRM
+                                                    try {
+                                                        $hasCrm = \App\Models\CrmTable::where('tour_id', $record->id)->exists();
+                                                        if ($hasCrm) {
+                                                            return false;
+                                                        }
+                                                    } catch (\Exception $e) {
+                                                        return false;
+                                                    }
+                                                    
+                                                    // Перевіряємо чи обрано готель в калькуляторі
+                                                    $hotelId = $get('calculator_hotel_id');
+                                                    return !empty($hotelId);
+                                                })
+                                                ->requiresConfirmation()
+                                                ->modalHeading('Згенерувати CRM таблицю')
+                                                ->modalDescription('Ця дія створить нову CRM таблицю зі схеми обраного готелю.')
+                                                ->modalSubmitActionLabel('Згенерувати')
+                                                ->modalCancelActionLabel('Скасувати')
+                                                ->action(function ($get, $set, $record) {
+                                                    // Перевіряємо чи вже існує CRM таблиця
+                                                    if (\App\Models\CrmTable::where('tour_id', $record->id)->exists()) {
+                                                        \Filament\Notifications\Notification::make()
+                                                            ->title('CRM вже згенерована')
+                                                            ->warning()
+                                                            ->send();
+                                                        return;
+                                                    }
+                                                    
+                                                    // Отримуємо дані з калькулятора
+                                                    $hotelId = $get('calculator_hotel_id');
+                                                    
+                                                    if (!$hotelId) {
+                                                        \Filament\Notifications\Notification::make()
+                                                            ->title('Помилка')
+                                                            ->body('Оберіть готель в калькуляторі перед генерацією CRM')
+                                                            ->danger()
+                                                            ->send();
+                                                        return;
+                                                    }
+                                                    
+                                                    // Завантажуємо готель зі схемою
+                                                    $hotel = \App\Models\Hotel::with(['schemeCategories.room', 'schemeCategories.items.places', 'rooms'])->find($hotelId);
+                                                    if (!$hotel) {
+                                                        \Filament\Notifications\Notification::make()
+                                                            ->title('Помилка')
+                                                            ->body('Готель не знайдено')
+                                                            ->danger()
+                                                            ->send();
+                                                        return;
+                                                    }
+                                                    
+                                                    // Перевіряємо чи заповнені номери в схемі
+                                                    $hasEmptyRooms = false;
+                                                    foreach ($hotel->schemeCategories as $category) {
+                                                        if ($category->items->isEmpty()) {
+                                                            $hasEmptyRooms = true;
+                                                            break;
+                                                        }
+                                                    }
+                                                    
+                                                    if ($hasEmptyRooms) {
+                                                        \Filament\Notifications\Notification::make()
+                                                            ->title('Помилка')
+                                                            ->body('Схема готелю не заповнена. Заповніть номери в схемі готелю перед генерацією CRM.')
+                                                            ->danger()
+                                                            ->send();
+                                                        return;
+                                                    }
+                                                    
+                                                    // Створюємо CRM таблицю
+                                                    $crmTable = \App\Models\CrmTable::create([
+                                                        'tour_id' => $record->id,
+                                                        'hotel_id' => $hotelId,
+                                                    ]);
+                                                    
+                                                    // Отримуємо дані з калькулятора для розрахунку цін
+                                                    // Спробуємо отримати з форми, якщо не вийде - з запису
+                                                    $roomTypes = $get('calculator_room_types') ?? $record->calculator_room_types ?? [];
+                                                    $nightsCount = (int)($get('nights_in_hotel') ?? $record->nights_in_hotel ?? 1);
+                                                    $transfers = $get('calculator_transfers') ?? $record->calculator_transfers ?? [];
+                                                    $additionalCosts = $get('calculator_additional_costs') ?? $record->calculator_additional_costs ?? [];
+                                                    
+                                                    // Якщо roomTypes порожній, спробуємо завантажити з запису
+                                                    if (empty($roomTypes) && $record->calculator_room_types) {
+                                                        $roomTypes = is_array($record->calculator_room_types) 
+                                                            ? $record->calculator_room_types 
+                                                            : json_decode($record->calculator_room_types, true) ?? [];
+                                                    }
+                                                    
+                                                    // Розраховуємо вартість трансферів на 1 особу (один раз для всіх типів)
+                                                    $transferCostPerPerson = 0;
+                                                    if (is_array($transfers)) {
+                                                        foreach ($transfers as $transfer) {
+                                                            if (!is_array($transfer)) continue;
+                                                            
+                                                            $transferType = $transfer['transfer_type'] ?? null;
+                                                            
+                                                            if ($transferType === 'train') {
+                                                                $trainToPrice = (float)($transfer['train_to_price'] ?? 0);
+                                                                $trainToBooking = (float)($transfer['train_to_booking'] ?? 0);
+                                                                $trainFromPrice = (float)($transfer['train_from_price'] ?? 0);
+                                                                $trainFromBooking = (float)($transfer['train_from_booking'] ?? 0);
+                                                                $transferCostPerPerson += $trainToPrice + $trainToBooking + $trainFromPrice + $trainFromBooking;
+                                                            } elseif ($transferType === 'gaz66') {
+                                                                $gaz66ToPrice = (float)($transfer['gaz66_to_price'] ?? 0);
+                                                                $gaz66ToSeats = (float)($transfer['gaz66_to_seats'] ?? 1);
+                                                                $gaz66FromPrice = (float)($transfer['gaz66_from_price'] ?? 0);
+                                                                $gaz66FromSeats = (float)($transfer['gaz66_from_seats'] ?? 1);
+                                                                
+                                                                if ($gaz66ToSeats > 0) {
+                                                                    $transferCostPerPerson += $gaz66ToPrice / $gaz66ToSeats;
+                                                                }
+                                                                if ($gaz66FromSeats > 0) {
+                                                                    $transferCostPerPerson += $gaz66FromPrice / $gaz66FromSeats;
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                    
+                                                    // Розраховуємо загальну вартість додаткових витрат (один раз для всіх типів)
+                                                    $totalAdditionalCosts = 0;
+                                                    if (is_array($additionalCosts)) {
+                                                        foreach ($additionalCosts as $cost) {
+                                                            if (is_array($cost) && isset($cost['cost'])) {
+                                                                $totalAdditionalCosts += (float)($cost['cost'] ?? 0);
+                                                            }
+                                                        }
+                                                    }
+                                                    
+                                                    // Перевіряємо чи є дані в калькуляторі
+                                                    if (empty($roomTypes)) {
+                                                        \Filament\Notifications\Notification::make()
+                                                            ->title('Помилка')
+                                                            ->body('Заповніть дані в калькуляторі перед генерацією CRM')
+                                                            ->danger()
+                                                            ->send();
+                                                        return;
+                                                    }
+                                                    
+                                                    // Створюємо мапу цін за типом номера (кількість місць -> ціна за місце)
+                                                    $priceMap = [];
+                                                    foreach ($roomTypes as $type) {
+                                                        if (!is_array($type)) continue;
+                                                        
+                                                        $places = (int)($type['places'] ?? 0);
+                                                        $pricePerPlace = (float)($type['price_per_place'] ?? 0);
+                                                        $margin = (float)($type['margin'] ?? 0);
+                                                        
+                                                        // Ціна за місце = (ціна_за_місце * ночі) + маржа + трансфери + додаткові витрати
+                                                        $totalPrice = ($pricePerPlace * $nightsCount) + $margin + $transferCostPerPerson + $totalAdditionalCosts;
+                                                        // Округлюємо до цілих чисел
+                                                        $priceMap[$places] = round($totalPrice);
+                                                    }
+                                                    
+                                                    // Перевіряємо чи є хоча б одна ціна в мапі
+                                                    if (empty($priceMap)) {
+                                                        \Filament\Notifications\Notification::make()
+                                                            ->title('Помилка')
+                                                            ->body('Не вдалося розрахувати ціни. Перевірте дані в калькуляторі.')
+                                                            ->danger()
+                                                            ->send();
+                                                        return;
+                                                    }
+                                                    
+                                                    // Копіюємо категорії та номери
+                                                    $sortOrder = 0;
+                                                    foreach ($hotel->schemeCategories as $originalCategory) {
+                                                        $crmCategory = \App\Models\CrmCategory::create([
+                                                            'crm_table_id' => $crmTable->id,
+                                                            'room_id' => $originalCategory->room_id,
+                                                            'name' => $originalCategory->name,
+                                                            'price_type' => $originalCategory->price_type,
+                                                            'rooms_count' => $originalCategory->rooms_count,
+                                                            'sort_order' => $sortOrder++,
+                                                        ]);
+                                                        
+                                                        // Спочатку копіюємо тільки батьківські номери (is_parent = true)
+                                                        $parentItemsMap = []; // Мапа для збереження зв'язків original_id => crm_id
+                                                        foreach ($originalCategory->items->where('is_parent', true) as $originalParentItem) {
+                                                            $crmParentItem = \App\Models\CrmItem::create([
+                                                                'crm_category_id' => $crmCategory->id,
+                                                                'parent_id' => null,
+                                                                'place_number' => $originalParentItem->place_number,
+                                                                'is_parent' => true,
+                                                                'room_number' => $originalParentItem->room_number,
+                                                                'meals' => $originalParentItem->meals,
+                                                                'price' => $originalParentItem->price,
+                                                                'first_name' => $originalParentItem->first_name,
+                                                                'last_name' => $originalParentItem->last_name,
+                                                                'phone' => $originalParentItem->phone,
+                                                                'telegram' => $originalParentItem->telegram,
+                                                                'advance' => $originalParentItem->advance ?? 0,
+                                                                'balance' => $originalParentItem->balance ?? 0,
+                                                                'has_transfer_there' => $originalParentItem->has_transfer_there ?? false,
+                                                                'has_transfer_back' => $originalParentItem->has_transfer_back ?? false,
+                                                                'info' => $originalParentItem->info,
+                                                                'sort_order' => $originalParentItem->sort_order,
+                                                            ]);
+                                                            
+                                                            // Зберігаємо зв'язок для копіювання місць
+                                                            $parentItemsMap[$originalParentItem->id] = $crmParentItem->id;
+                                                        }
+                                                        
+                                                        // Визначаємо кількість місць у номері для цієї категорії
+                                                        $room = $originalCategory->room;
+                                                        $placesPerRoom = 0;
+                                                        
+                                                        if ($room) {
+                                                            // Розраховуємо кількість місць з bed_types
+                                                            $bedTypes = is_array($room->bed_types) ? $room->bed_types : json_decode($room->bed_types ?? '{}', true);
+                                                            if (is_array($bedTypes)) {
+                                                                $singleBeds = (int)($bedTypes['single'] ?? 0);
+                                                                $doubleBeds = (int)($bedTypes['double'] ?? 0);
+                                                                // 1 односпальне = 1 місце, 1 двоспальне = 2 місця
+                                                                $placesPerRoom = $singleBeds + ($doubleBeds * 2);
+                                                            }
+                                                        }
+                                                        
+                                                        // Отримуємо ціну за місце для цього типу номера
+                                                        $pricePerPlace = $priceMap[$placesPerRoom] ?? 0;
+                                                        
+                                                        // Якщо ціна не знайдена, використовуємо 0 (користувач може ввести вручну)
+                                                        if ($pricePerPlace == 0 && $placesPerRoom > 0) {
+                                                            // Можна додати попередження, але поки що просто використовуємо 0
+                                                        }
+                                                        
+                                                        // Тепер копіюємо тільки місця (is_parent = false), які мають parent_id (належать до батьківського номера)
+                                                        foreach ($originalCategory->items->where('is_parent', false)->whereNotNull('parent_id') as $originalPlace) {
+                                                            $crmParentId = $parentItemsMap[$originalPlace->parent_id] ?? null;
+                                                            if ($crmParentId) {
+                                                                // Розраховуємо баланс на основі нової ціни (ціна вже округлена в мапі)
+                                                                $newPrice = $pricePerPlace; // Вже округлена в мапі
+                                                                $advance = (float)($originalPlace->advance ?? 0);
+                                                                $balance = round($newPrice - $advance); // Округлюємо баланс
+                                                                
+                                                                \App\Models\CrmItem::create([
+                                                                    'crm_category_id' => $crmCategory->id,
+                                                                    'parent_id' => $crmParentId,
+                                                                    'place_number' => $originalPlace->place_number,
+                                                                    'is_parent' => false,
+                                                                    'room_number' => $originalPlace->room_number,
+                                                                    'meals' => $originalPlace->meals,
+                                                                    'price' => $newPrice, // Використовуємо ціну з калькулятора
+                                                                    'first_name' => $originalPlace->first_name,
+                                                                    'last_name' => $originalPlace->last_name,
+                                                                    'phone' => $originalPlace->phone,
+                                                                    'telegram' => $originalPlace->telegram,
+                                                                    'advance' => $advance,
+                                                                    'balance' => $balance, // Перераховуємо баланс
+                                                                    'has_transfer_there' => $originalPlace->has_transfer_there ?? false,
+                                                                    'has_transfer_back' => $originalPlace->has_transfer_back ?? false,
+                                                                    'info' => $originalPlace->info,
+                                                                    'sort_order' => $originalPlace->sort_order,
+                                                                ]);
+                                                            }
+                                                        }
+                                                    }
+                                                    
+                                                    \Filament\Notifications\Notification::make()
+                                                        ->title('CRM згенеровано успішно')
+                                                        ->body('Схема готелю скопійована з усіма номерами')
+                                                        ->success()
+                                                        ->send();
+                                                    
+                                                    // Оновлюємо record
+                                                    $record->refresh();
+                                                    
+                                                    // Перенаправляємо на ту ж сторінку для оновлення
+                                                    redirect(\App\Filament\Resources\TourResource::getUrl('edit', ['record' => $record]));
+                                                }),
+                                            
+                                            Forms\Components\Actions\Action::make('delete_crm')
+                                                ->label('Видалити СРМ')
+                                                ->icon('heroicon-o-trash')
+                                                ->color('danger')
+                                                ->visible(function ($get, $record) {
+                                                    if (!$record || !isset($record->id)) {
+                                                        return false;
+                                                    }
+                                                    
+                                                    // Показуємо тільки якщо CRM таблиця існує
+                                                    try {
+                                                        return \App\Models\CrmTable::where('tour_id', $record->id)->exists();
+                                                    } catch (\Exception $e) {
+                                                        return false;
+                                                    }
+                                                })
+                                                ->requiresConfirmation()
+                                                ->modalHeading('Видалити CRM таблицю')
+                                                ->modalDescription('Ви впевнені, що хочете видалити CRM таблицю? Ця дія видалить всі дані та не може бути скасована.')
+                                                ->modalSubmitActionLabel('Видалити')
+                                                ->modalCancelActionLabel('Скасувати')
+                                                ->action(function ($get, $set, $record) {
+                                                    try {
+                                                        $crmTable = \App\Models\CrmTable::where('tour_id', $record->id)->first();
+                                                        
+                                                        if (!$crmTable) {
+                                                            \Filament\Notifications\Notification::make()
+                                                                ->title('Помилка')
+                                                                ->body('CRM таблиця не знайдена')
+                                                                ->danger()
+                                                                ->send();
+                                                            return;
+                                                        }
+                                                        
+                                                        // Видаляємо CRM таблицю (каскадне видалення через foreign keys видалить категорії та елементи)
+                                                        $crmTable->delete();
+                                                        
+                                                        \Filament\Notifications\Notification::make()
+                                                            ->title('CRM таблицю видалено')
+                                                            ->body('Всі дані CRM таблиці видалено успішно')
+                                                            ->success()
+                                                            ->send();
+                                                        
+                                                        // Оновлюємо record
+                                                        $record->refresh();
+                                                        
+                                                        // Перенаправляємо на ту ж сторінку для оновлення
+                                                        redirect(\App\Filament\Resources\TourResource::getUrl('edit', ['record' => $record]));
+                                                    } catch (\Exception $e) {
+                                                        \Filament\Notifications\Notification::make()
+                                                            ->title('Помилка видалення')
+                                                            ->body('Не вдалося видалити CRM таблицю: ' . $e->getMessage())
+                                                            ->danger()
+                                                            ->send();
+                                                    }
+                                                }),
+                                        ])
+                                            ->columnSpanFull(),
+                                        
+                                        Forms\Components\View::make('filament.forms.components.crm-table')
+                                            ->columnSpanFull()
+                                            ->visible(function ($get, $record) {
+                                                try {
+                                                    if (!$record || !isset($record->id)) {
+                                                        return false;
+                                                    }
+                                                    return \App\Models\CrmTable::where('tour_id', $record->id)->exists();
+                                                } catch (\Exception $e) {
+                                                    return false;
+                                                }
+                                            }),
+                                    ])
+                                    ->columnSpanFull(),
+                            ])
+                            ->visible(fn ($record) => $record && $record->exists),
                     ])
                     ->columnSpanFull(),
             ]);

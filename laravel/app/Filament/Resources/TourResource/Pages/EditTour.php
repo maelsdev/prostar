@@ -4,7 +4,9 @@ namespace App\Filament\Resources\TourResource\Pages;
 
 use App\Filament\Resources\TourResource;
 use App\Models\Hotel;
+use App\Models\CrmItem;
 use Filament\Actions;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\EditRecord;
 
 class EditTour extends EditRecord
@@ -101,5 +103,131 @@ class EditTour extends EditRecord
         }
         
         return $data;
+    }
+
+    /**
+     * Зберегти дані CRM таблиці
+     */
+    public function saveCrmItems($categoryId, $rooms): void
+    {
+        try {
+            $category = \App\Models\CrmCategory::find($categoryId);
+            if (!$category) {
+                Notification::make()
+                    ->title('Помилка')
+                    ->body('Категорія не знайдена')
+                    ->danger()
+                    ->send();
+                return;
+            }
+
+            $sortOrder = 0;
+            $savedCount = 0;
+            $updatedCount = 0;
+
+            foreach ($rooms as $roomIndex => $roomData) {
+                $parentId = $roomData['id'] ?? null;
+                $roomNumber = $roomData['room_number'] ?? '';
+                $places = $roomData['places'] ?? [];
+
+                // Зберігаємо або створюємо батьківський номер
+                // Примітка: room_number не оновлюється, оскільки воно закрите від редагування
+                if ($parentId) {
+                    $parentItem = CrmItem::find($parentId);
+                    if ($parentItem) {
+                        // Оновлюємо тільки sort_order, room_number залишається незмінним
+                        $parentItem->update([
+                            'sort_order' => $sortOrder,
+                        ]);
+                        $updatedCount++;
+                    }
+                } else {
+                    // Створюємо новий батьківський номер
+                    $parentItem = CrmItem::create([
+                        'crm_category_id' => $categoryId,
+                        'parent_id' => null,
+                        'place_number' => null,
+                        'is_parent' => true,
+                        'room_number' => $roomNumber,
+                        'meals' => 'no_meals',
+                        'price' => 0,
+                        'first_name' => null,
+                        'last_name' => null,
+                        'phone' => null,
+                        'telegram' => null,
+                        'advance' => 0,
+                        'balance' => 0,
+                        'has_transfer_there' => false,
+                        'has_transfer_back' => false,
+                        'info' => null,
+                        'sort_order' => $sortOrder,
+                    ]);
+                    $savedCount++;
+                    $parentId = $parentItem->id;
+                }
+
+                $sortOrder++;
+
+                // Зберігаємо або створюємо місця
+                foreach ($places as $placeData) {
+                    $placeId = $placeData['id'] ?? null;
+                    $placeNumber = $placeData['place_number'] ?? 1;
+
+                    $price = (float)($placeData['price'] ?? 0);
+                    $advance = (float)($placeData['advance'] ?? 0);
+                    $balance = $price - $advance;
+
+                    $placeItemData = [
+                        'crm_category_id' => $categoryId,
+                        'parent_id' => $parentId,
+                        'place_number' => $placeNumber,
+                        'is_parent' => false,
+                        'room_number' => '',
+                        'meals' => $placeData['meals'] ?? 'no_meals',
+                        'price' => $price,
+                        'first_name' => $placeData['first_name'] ?? '',
+                        'last_name' => $placeData['last_name'] ?? '',
+                        'phone' => $placeData['phone'] ?? '',
+                        'telegram' => $placeData['telegram'] ?? '',
+                        'advance' => $advance,
+                        'balance' => $balance,
+                        'has_transfer_there' => (bool)($placeData['has_transfer_there'] ?? false),
+                        'has_transfer_back' => (bool)($placeData['has_transfer_back'] ?? false),
+                        'info' => $placeData['info'] ?? '',
+                        'sort_order' => $sortOrder,
+                    ];
+
+                    if ($placeId) {
+                        // Оновлюємо існуюче місце
+                        $placeItem = CrmItem::find($placeId);
+                        if ($placeItem) {
+                            $placeItem->update($placeItemData);
+                            $updatedCount++;
+                        }
+                    } else {
+                        // Створюємо нове місце
+                        CrmItem::create($placeItemData);
+                        $savedCount++;
+                    }
+
+                    $sortOrder++;
+                }
+            }
+
+            Notification::make()
+                ->title('Успішно збережено')
+                ->body('Оновлено: ' . $updatedCount . ', Створено: ' . $savedCount)
+                ->success()
+                ->send();
+
+            // Оновлюємо запис
+            $this->record->refresh();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Помилка збереження')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
     }
 }
