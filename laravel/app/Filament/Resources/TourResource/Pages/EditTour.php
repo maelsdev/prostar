@@ -230,4 +230,152 @@ class EditTour extends EditRecord
                 ->send();
         }
     }
+
+    /**
+     * Підтвердити оплату авансу для конкретного місця
+     */
+    public function confirmAdvancePayment($placeId, $advanceAmount): void
+    {
+        try {
+            $place = CrmItem::find($placeId);
+            if (!$place) {
+                Notification::make()
+                    ->title('Помилка')
+                    ->body('Місце не знайдено')
+                    ->danger()
+                    ->send();
+                return;
+            }
+
+            // Оновлюємо аванс та баланс
+            $price = (float)($place->price ?? 0);
+            $advance = (float)$advanceAmount;
+            $balance = $price - $advance;
+
+            $place->update([
+                'advance' => $advance,
+                'balance' => $balance,
+            ]);
+
+            Notification::make()
+                ->title('Оплату підтверджено')
+                ->body('Аванс у розмірі ' . number_format($advance, 2, '.', ' ') . ' грн збережено')
+                ->success()
+                ->send();
+
+            // Оновлюємо запис
+            $this->record->refresh();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Помилка підтвердження оплати')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    /**
+     * Зберегти окреме поле місця
+     */
+    public function savePlaceField($placeId, $fieldName, $fieldValue): void
+    {
+        try {
+            $place = CrmItem::find($placeId);
+            if (!$place) {
+                Notification::make()
+                    ->title('Помилка')
+                    ->body('Місце не знайдено')
+                    ->danger()
+                    ->send();
+                return;
+            }
+
+            // Валідація поля
+            $allowedFields = ['first_name', 'last_name', 'phone', 'telegram', 'price', 'info', 'has_transfer_there', 'has_transfer_back'];
+            if (!in_array($fieldName, $allowedFields)) {
+                Notification::make()
+                    ->title('Помилка')
+                    ->body('Невірне ім\'я поля')
+                    ->danger()
+                    ->send();
+                return;
+            }
+
+            // Підготовка значення
+            $value = $fieldValue;
+            if ($fieldName === 'price') {
+                $value = (float)$fieldValue;
+                // Перераховуємо баланс при зміні ціни
+                $advance = (float)($place->advance ?? 0);
+                $balance = $value - $advance;
+                $place->update([
+                    $fieldName => $value,
+                    'balance' => $balance,
+                ]);
+            } elseif (in_array($fieldName, ['has_transfer_there', 'has_transfer_back'])) {
+                // Для булевих полів трансферів
+                $value = (bool)$fieldValue;
+                $place->update([
+                    $fieldName => $value,
+                ]);
+            } else {
+                $place->update([
+                    $fieldName => $value,
+                ]);
+            }
+
+            // Оновлюємо запис
+            $this->record->refresh();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Помилка збереження')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
+
+    /**
+     * Зберегти всі нефінансові дані місця
+     */
+    public function savePlaceData($placeId, $data): void
+    {
+        try {
+            $place = CrmItem::find($placeId);
+            if (!$place) {
+                Notification::make()
+                    ->title('Помилка')
+                    ->body('Місце не знайдено')
+                    ->danger()
+                    ->send();
+                return;
+            }
+
+            // Оновлюємо тільки нефінансові поля
+            $place->update([
+                'first_name' => $data['first_name'] ?? '',
+                'last_name' => $data['last_name'] ?? '',
+                'phone' => $data['phone'] ?? '',
+                'telegram' => $data['telegram'] ?? '',
+                'info' => $data['info'] ?? '',
+                'has_transfer_there' => (bool)($data['has_transfer_there'] ?? false),
+                'has_transfer_back' => (bool)($data['has_transfer_back'] ?? false),
+            ]);
+
+            Notification::make()
+                ->title('Дані збережено')
+                ->body('Всі дані успішно збережено')
+                ->success()
+                ->send();
+
+            // Оновлюємо запис
+            $this->record->refresh();
+        } catch (\Exception $e) {
+            Notification::make()
+                ->title('Помилка збереження')
+                ->body($e->getMessage())
+                ->danger()
+                ->send();
+        }
+    }
 }

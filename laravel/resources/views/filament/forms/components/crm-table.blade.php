@@ -31,6 +31,52 @@
         }
     }
     
+    // Отримуємо дані про трансфери з туру
+    $transferCosts = [
+        'there' => 0, // Вартість трансферу туди
+        'back' => 0, // Вартість трансферу назад
+    ];
+    
+    if ($tourId) {
+        $tour = Tour::find($tourId);
+        if ($tour && $tour->calculator_transfers) {
+            $transfers = is_array($tour->calculator_transfers) ? $tour->calculator_transfers : json_decode($tour->calculator_transfers, true);
+            
+            if (is_array($transfers)) {
+                foreach ($transfers as $transfer) {
+                    if (!is_array($transfer)) continue;
+                    
+                    $transferType = $transfer['transfer_type'] ?? null;
+                    
+                    // Для потяга
+                    if ($transferType === 'train') {
+                        $trainToPrice = (float)($transfer['train_to_price'] ?? 0);
+                        $trainToBooking = (float)($transfer['train_to_booking'] ?? 0);
+                        $trainFromPrice = (float)($transfer['train_from_price'] ?? 0);
+                        $trainFromBooking = (float)($transfer['train_from_booking'] ?? 0);
+                        
+                        $transferCosts['there'] += $trainToPrice + $trainToBooking;
+                        $transferCosts['back'] += $trainFromPrice + $trainFromBooking;
+                    }
+                    // Для ГАЗ 66
+                    elseif ($transferType === 'gaz66') {
+                        $gaz66ToPrice = (float)($transfer['gaz66_to_price'] ?? 0);
+                        $gaz66ToSeats = (float)($transfer['gaz66_to_seats'] ?? 1);
+                        $gaz66FromPrice = (float)($transfer['gaz66_from_price'] ?? 0);
+                        $gaz66FromSeats = (float)($transfer['gaz66_from_seats'] ?? 1);
+                        
+                        if ($gaz66ToSeats > 0) {
+                            $transferCosts['there'] += $gaz66ToPrice / $gaz66ToSeats;
+                        }
+                        if ($gaz66FromSeats > 0) {
+                            $transferCosts['back'] += $gaz66FromPrice / $gaz66FromSeats;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    
     if ($tourId) {
         $crmTable = CrmTable::with(['categories.room', 'categories.items.places'])->where('tour_id', $tourId)->first();
         if ($crmTable) {
@@ -145,6 +191,39 @@
      x-data="{ 
          categories: @js($categories),
          loading: false,
+         transferCosts: @js($transferCosts),
+         // Функція для оновлення originalPrice на основі поточної ціни
+         updateOriginalPrice(place) {
+             let currentPrice = parseFloat(place.price) || 0;
+             // originalPrice = поточна ціна + вартість вимкнених трансферів
+             let transferCost = 0;
+             if (!place.has_transfer_there) transferCost += this.transferCosts.there;
+             if (!place.has_transfer_back) transferCost += this.transferCosts.back;
+             place.originalPrice = Math.round(currentPrice + transferCost);
+         },
+         // Функція для перерахунку ціни при зміні перемикачів трансферів
+         recalculatePrice(place) {
+             // Якщо originalPrice не встановлено, встановлюємо його на основі поточної ціни
+             if (!place.originalPrice && place.originalPrice !== 0) {
+                 this.updateOriginalPrice(place);
+             }
+             
+             let newPrice = place.originalPrice;
+             
+             // Якщо трансфер туди вимкнено, віднімаємо вартість трансферу туди
+             if (!place.has_transfer_there) {
+                 newPrice -= this.transferCosts.there;
+             }
+             
+             // Якщо трансфер назад вимкнено, віднімаємо вартість трансферу назад
+             if (!place.has_transfer_back) {
+                 newPrice -= this.transferCosts.back;
+             }
+             
+             // Оновлюємо ціну та баланс з округленням
+             place.price = Math.max(0, Math.round(newPrice));
+             place.balance = Math.round(parseFloat(place.price || 0) - parseFloat(place.advance || 0));
+         },
         async refresh() {
             this.loading = true;
             try {
@@ -160,6 +239,28 @@
          init() {
              // Завантажуємо категорії при ініціалізації
              this.categories = @js($categories) || [];
+             
+             // Встановлюємо початкові ціни для всіх місць
+             // originalPrice - це ціна з усіма трансферами включеними
+             this.categories.forEach(category => {
+                 category.rooms.forEach(room => {
+                     room.places.forEach(place => {
+                         let currentPrice = parseFloat(place.price) || 0;
+                         
+                         // Обчислюємо originalPrice (ціна з усіма трансферами)
+                         // Якщо трансфер вимкнено, додаємо його вартість до поточної ціни
+                         let originalPrice = currentPrice;
+                         if (!place.has_transfer_there) {
+                             originalPrice += this.transferCosts.there;
+                         }
+                         if (!place.has_transfer_back) {
+                             originalPrice += this.transferCosts.back;
+                         }
+                         
+                         place.originalPrice = Math.round(originalPrice);
+                     });
+                 });
+             });
          }
      }">
     <template x-if="loading">
@@ -175,61 +276,12 @@
                 <div class="bg-white border border-gray-200 rounded">
                     <!-- Заголовок категорії -->
                     <div class="px-6 py-4 border-b border-gray-200">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <h3 class="text-base font-semibold text-gray-900" x-text="category.name"></h3>
-                                <p class="mt-1 text-sm text-gray-500">
-                                    <span x-text="category.rooms_count"></span> номерів · 
-                                <span x-text="category.total_places"></span> місць
-                                </p>
-                            </div>
-                            <button
-                                type="button"
-                                x-on:click="
-                                    const roomsToSave = category.rooms.map(room => ({
-                                        id: room.id,
-                                        room_number: room.room_number || '',
-                                        places: room.places.map(place => {
-                                            const price = parseFloat(place.price) || 0;
-                                            const advance = parseFloat(place.advance) || 0;
-                                            const balance = price - advance;
-                                            return {
-                                                id: place.id,
-                                                place_number: place.place_number,
-                                                meals: place.meals || 'no_meals',
-                                                price: price,
-                                                first_name: place.first_name || '',
-                                                last_name: place.last_name || '',
-                                                phone: place.phone || '',
-                                                telegram: place.telegram || '',
-                                                advance: advance,
-                                                balance: balance,
-                                                has_transfer_there: place.has_transfer_there || false,
-                                                has_transfer_back: place.has_transfer_back || false,
-                                                info: place.info || ''
-                                            };
-                                        })
-                                    }));
-                                    
-                                    loading = true;
-                                    $wire.call('saveCrmItems', category.id, roomsToSave)
-                                        .then(() => {
-                                            loading = false;
-                                            // Оновлюємо дані після збереження
-                                            setTimeout(() => {
-                                                window.location.reload();
-                                            }, 500);
-                                        })
-                                        .catch((error) => {
-                                            console.error('Error saving:', error);
-                                            loading = false;
-                                        });
-                                "
-                                class="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
-                                style="background-color: #2563eb !important; color: white !important;"
-                            >
-                                Зберегти
-                            </button>
+                        <div>
+                            <h3 class="text-base font-semibold text-gray-900" x-text="category.name"></h3>
+                            <p class="mt-1 text-sm text-gray-500">
+                                <span x-text="category.rooms_count"></span> номерів · 
+                            <span x-text="category.total_places"></span> місць
+                            </p>
                         </div>
                     </div>
                     
@@ -257,6 +309,7 @@
                                         </svg>
                                     </th>
                                     <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Інформація</th>
+                                    <th class="px-2 py-1.5 text-center text-xs font-semibold text-gray-700">Зберегти</th>
                                     </tr>
                                 </thead>
                             <tbody class="divide-y divide-gray-200">
@@ -318,21 +371,63 @@
                                                     step="0.01"
                                                     min="0"
                                                     placeholder="0.00"
-                                                    x-on:input="place.balance = parseFloat(place.price || 0) - parseFloat(place.advance || 0)"
+                                                    x-on:input="
+                                                        let newPrice = Math.round(parseFloat(place.price || 0));
+                                                        place.price = newPrice;
+                                                        // Оновлюємо originalPrice на основі нової ціни
+                                                        updateOriginalPrice(place);
+                                                        // Оновлюємо баланс
+                                                        place.balance = Math.round(newPrice - parseFloat(place.advance || 0));
+                                                    "
                                                     class="w-full px-1.5 py-0.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
                                                 />
                                             </td>
                                             <!-- Аванс -->
                                             <td class="px-2 py-1.5">
-                                                <input 
-                                                    type="number"
-                                                    x-model="place.advance"
-                                                    step="0.01"
-                                                    min="0"
-                                                    placeholder="0.00"
-                                                    x-on:input="place.balance = parseFloat(place.price || 0) - parseFloat(place.advance || 0)"
-                                                    class="w-full px-1.5 py-0.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
-                                                />
+                                                <div class="flex items-center gap-1.5">
+                                                    <input 
+                                                        type="number"
+                                                        x-model="place.advance"
+                                                        step="0.01"
+                                                        min="0"
+                                                        placeholder="0.00"
+                                                        x-on:input="place.balance = Math.round(parseFloat(place.price || 0) - parseFloat(place.advance || 0))"
+                                                        :class="parseFloat(place.advance || 0) > 0 ? 'bg-green-50 border-green-300' : 'bg-white border-gray-300'"
+                                                        class="w-20 px-1.5 py-0.5 text-xs border focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                                    />
+                                                    <button
+                                                        type="button"
+                                                        x-on:click="
+                                                            if (!place.id) {
+                                                                alert('Спочатку збережіть місце');
+                                                                return;
+                                                            }
+                                                            const advanceValue = Math.round(parseFloat(place.advance || 0) * 100) / 100;
+                                                            if (advanceValue <= 0) {
+                                                                alert('Введіть суму авансу');
+                                                                return;
+                                                            }
+                                                            loading = true;
+                                                            $wire.call('confirmAdvancePayment', place.id, advanceValue)
+                                                                .then(() => {
+                                                                    loading = false;
+                                                                    place.balance = Math.round(parseFloat(place.price || 0) - advanceValue);
+                                                                    setTimeout(() => {
+                                                                        window.location.reload();
+                                                                    }, 500);
+                                                                })
+                                                                .catch((error) => {
+                                                                    console.error('Error confirming payment:', error);
+                                                                    loading = false;
+                                                                });
+                                                        "
+                                                        class="px-2.5 py-1 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded transition-colors flex-shrink-0 min-w-[28px] h-[24px] flex items-center justify-center"
+                                                        title="Підтвердити оплату"
+                                                        style="background-color: #16a34a !important;"
+                                                    >
+                                                        ✓
+                                                    </button>
+                                                </div>
                                             </td>
                                             <!-- Залишок -->
                                             <td class="px-2 py-1.5">
@@ -349,7 +444,13 @@
                                             <td class="px-2 py-1.5 text-center">
                                                 <button
                                                     type="button"
-                                                    x-on:click="place.has_transfer_there = !place.has_transfer_there"
+                                                    x-on:click="
+                                                        place.has_transfer_there = !place.has_transfer_there; 
+                                                        recalculatePrice(place);
+                                                        if (place.id) {
+                                                            $wire.call('savePlaceField', place.id, 'has_transfer_there', place.has_transfer_there);
+                                                        }
+                                                    "
                                                     class="relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                                                     :class="place.has_transfer_there ? '!bg-green-600' : 'bg-gray-300'"
                                                     :style="place.has_transfer_there ? 'background-color: #16a34a !important;' : ''"
@@ -364,7 +465,13 @@
                                             <td class="px-2 py-1.5 text-center">
                                                 <button
                                                     type="button"
-                                                    x-on:click="place.has_transfer_back = !place.has_transfer_back"
+                                                    x-on:click="
+                                                        place.has_transfer_back = !place.has_transfer_back; 
+                                                        recalculatePrice(place);
+                                                        if (place.id) {
+                                                            $wire.call('savePlaceField', place.id, 'has_transfer_back', place.has_transfer_back);
+                                                        }
+                                                    "
                                                     class="relative inline-flex h-5 w-10 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-green-500 focus:ring-offset-2"
                                                     :class="place.has_transfer_back ? '!bg-green-600' : 'bg-gray-300'"
                                                     :style="place.has_transfer_back ? 'background-color: #16a34a !important;' : ''"
@@ -384,6 +491,30 @@
                                                     x-on:keydown.enter.prevent="$event.target.blur()"
                                                     class="w-full px-1.5 py-0.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
                                                 />
+                                            </td>
+                                            <!-- Кнопка збереження -->
+                                            <td class="px-2 py-1.5 text-center">
+                                                <button
+                                                    type="button"
+                                                    x-on:click="
+                                                        if (!place.id) {
+                                                            alert('Спочатку збережіть місце');
+                                                            return;
+                                                        }
+                                                        $wire.call('savePlaceData', place.id, {
+                                                            first_name: place.first_name || '',
+                                                            last_name: place.last_name || '',
+                                                            phone: place.phone || '',
+                                                            telegram: place.telegram || '',
+                                                            info: place.info || ''
+                                                        });
+                                                    "
+                                                    class="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                                                    title="Зберегти всі дані"
+                                                    style="background-color: #2563eb !important;"
+                                                >
+                                                    Зберегти
+                                                </button>
                                             </td>
                                         </tr>
                                     </template>
