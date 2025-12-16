@@ -290,26 +290,26 @@
                         <table class="w-full text-xs">
                                 <thead>
                                 <tr class="border-b border-gray-300 bg-gray-50">
-                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Номер кімнати</th>
-                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Прізвище</th>
-                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Ім'я</th>
-                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Телефон</th>
-                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Телеграм</th>
-                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Вартість</th>
-                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Аванс</th>
-                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Залишок</th>
-                                    <th class="px-2 py-1.5 text-center text-xs font-semibold text-gray-700">
+                                    <th class="px-2 py-1.5 text-center text-xs font-semibold text-gray-700 w-16">Номер кімнати</th>
+                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 w-56">Прізвище</th>
+                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 w-[168px]">Ім'я</th>
+                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 w-36">Телефон</th>
+                                    <th class="px-0.5 py-1.5 text-left text-xs font-semibold text-gray-700 w-6">Телеграм</th>
+                                    <th class="px-2 py-1.5 text-center text-xs font-semibold text-gray-700 w-20">Вартість</th>
+                                    <th class="px-2 py-1.5 text-center text-xs font-semibold text-gray-700 w-20">Аванс</th>
+                                    <th class="px-2 py-1.5 text-center text-xs font-semibold text-gray-700 w-20">Залишок</th>
+                                    <th class="px-1 py-1.5 text-center text-xs font-semibold text-gray-700 w-12">
                                         <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
                                         </svg>
                                     </th>
-                                    <th class="px-2 py-1.5 text-center text-xs font-semibold text-gray-700">
+                                    <th class="px-1 py-1.5 text-center text-xs font-semibold text-gray-700 w-12">
                                         <svg class="w-4 h-4 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 17l-5-5m0 0l5-5m-5 5h12"/>
                                         </svg>
                                     </th>
-                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700">Інформація</th>
-                                    <th class="px-2 py-1.5 text-center text-xs font-semibold text-gray-700">Зберегти</th>
+                                    <th class="px-2 py-1.5 text-left text-xs font-semibold text-gray-700 w-28">Інформація</th>
+                                    <th class="px-2 py-1.5 text-center text-xs font-semibold text-gray-700 w-24">Зберегти</th>
                                     </tr>
                                 </thead>
                             <tbody class="divide-y divide-gray-200">
@@ -319,13 +319,13 @@
                                             :class="placeIndex === room.places.length - 1 ? 'border-b-2 border-gray-400' : ''">
                                             <!-- Номер кімнати з rowspan -->
                                             <template x-if="placeIndex === 0">
-                                                <td class="px-2 py-1.5 align-middle text-center border-r border-gray-300 bg-gray-50 font-medium" 
+                                                <td class="px-2 py-1.5 align-middle text-center border-r border-gray-300 bg-gray-50 font-medium w-16" 
                                                     x-bind:rowspan="room.places.length">
                                                     <span x-text="room.room_number || '—'" class="text-xs text-gray-700"></span>
                                                 </td>
                                             </template>
                                             <!-- Прізвище -->
-                                            <td class="px-2 py-1.5">
+                                            <td class="px-2 py-1.5 w-56">
                                                 <input 
                                                     type="text"
                                                     x-model="place.last_name"
@@ -334,7 +334,7 @@
                                                 />
                                             </td>
                                             <!-- Ім'я -->
-                                            <td class="px-2 py-1.5">
+                                            <td class="px-2 py-1.5 w-[168px]">
                                                 <input 
                                                     type="text"
                                                     x-model="place.first_name"
@@ -343,7 +343,7 @@
                                                 />
                                             </td>
                                             <!-- Телефон -->
-                                            <td class="px-2 py-1.5">
+                                            <td class="px-2 py-1.5 w-36">
                                                 <input 
                                                     type="text"
                                                     x-model="place.phone"
@@ -352,25 +352,25 @@
                                                 />
                                             </td>
                                             <!-- Телеграм -->
-                                            <td class="px-2 py-1.5">
+                                            <td class="px-0.5 py-1.5 w-6">
                                                 <div class="flex items-center">
-                                                    <span class="text-xs text-gray-400 mr-1">@</span>
+                                                    <span class="text-xs text-gray-400 mr-0.5">@</span>
                                                     <input 
                                                         type="text"
                                                         x-model="place.telegram"
-                                                        placeholder="nickname"
-                                                        class="flex-1 px-1.5 py-0.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                                        placeholder=""
+                                                        class="flex-1 px-0.5 py-0.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
                                                     />
                                                 </div>
                                             </td>
                                             <!-- Вартість -->
-                                            <td class="px-2 py-1.5">
+                                            <td class="px-2 py-1.5 text-center w-20">
                                                 <input 
                                                     type="number"
                                                     x-model="place.price"
                                                     step="0.01"
                                                     min="0"
-                                                    placeholder="0.00"
+                                                    placeholder="0"
                                                     x-on:input="
                                                         let newPrice = Math.round(parseFloat(place.price || 0));
                                                         place.price = newPrice;
@@ -379,21 +379,21 @@
                                                         // Оновлюємо баланс
                                                         place.balance = Math.round(newPrice - parseFloat(place.advance || 0));
                                                     "
-                                                    class="w-full px-1.5 py-0.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white"
+                                                    class="w-full px-1.5 py-0.5 text-xs border border-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 bg-white text-center"
                                                 />
                                             </td>
                                             <!-- Аванс -->
-                                            <td class="px-2 py-1.5">
-                                                <div class="flex items-center gap-1.5">
+                                            <td class="px-2 py-1.5 text-center w-20">
+                                                <div class="flex items-center gap-1 justify-center">
                                                     <input 
                                                         type="number"
                                                         x-model="place.advance"
                                                         step="0.01"
                                                         min="0"
-                                                        placeholder="0.00"
+                                                        placeholder="0"
                                                         x-on:input="place.balance = Math.round(parseFloat(place.price || 0) - parseFloat(place.advance || 0))"
                                                         :class="parseFloat(place.advance || 0) > 0 ? 'bg-green-50 border-green-300' : 'bg-white border-gray-300'"
-                                                        class="w-20 px-1.5 py-0.5 text-xs border focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500"
+                                                        class="w-14 px-1 py-0.5 text-xs border focus:outline-none focus:ring-1 focus:ring-blue-500 focus:border-blue-500 text-center"
                                                     />
                                                     <button
                                                         type="button"
@@ -412,16 +412,13 @@
                                                                 .then(() => {
                                                                     loading = false;
                                                                     place.balance = Math.round(parseFloat(place.price || 0) - advanceValue);
-                                                                    setTimeout(() => {
-                                                                        window.location.reload();
-                                                                    }, 500);
                                                                 })
                                                                 .catch((error) => {
                                                                     console.error('Error confirming payment:', error);
                                                                     loading = false;
                                                                 });
                                                         "
-                                                        class="px-2.5 py-1 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded transition-colors flex-shrink-0 min-w-[28px] h-[24px] flex items-center justify-center"
+                                                        class="px-1.5 py-0.5 text-xs font-semibold text-white bg-green-600 hover:bg-green-700 rounded transition-colors flex-shrink-0 min-w-[20px] h-[20px] flex items-center justify-center"
                                                         title="Підтвердити оплату"
                                                         style="background-color: #16a34a !important;"
                                                     >
@@ -430,18 +427,18 @@
                                                 </div>
                                             </td>
                                             <!-- Залишок -->
-                                            <td class="px-2 py-1.5">
+                                            <td class="px-2 py-1.5 text-center w-20">
                                                 <input 
                                                     type="number"
                                                     x-model="place.balance"
                                                     step="0.01"
                                                     readonly
-                                                    placeholder="0.00"
-                                                    class="w-full px-1.5 py-0.5 text-xs border border-gray-300 bg-gray-50 text-gray-600 cursor-not-allowed"
+                                                    placeholder="0"
+                                                    class="w-full px-1.5 py-0.5 text-xs border border-gray-300 bg-gray-50 text-gray-600 cursor-not-allowed text-center"
                                                 />
                                             </td>
                                             <!-- Трансфер туди -->
-                                            <td class="px-2 py-1.5 text-center">
+                                            <td class="px-1 py-1.5 text-center w-12">
                                                 <button
                                                     type="button"
                                                     x-on:click="
@@ -462,7 +459,7 @@
                                                 </button>
                                             </td>
                                             <!-- Трансфер назад -->
-                                            <td class="px-2 py-1.5 text-center">
+                                            <td class="px-1 py-1.5 text-center w-12">
                                                 <button
                                                     type="button"
                                                     x-on:click="
@@ -483,7 +480,7 @@
                                                 </button>
                                             </td>
                                             <!-- Інформація -->
-                                            <td class="px-2 py-1.5">
+                                            <td class="px-2 py-1.5 w-28">
                                                 <input 
                                                     type="text"
                                                     x-model="place.info"
@@ -493,7 +490,7 @@
                                                 />
                                             </td>
                                             <!-- Кнопка збереження -->
-                                            <td class="px-2 py-1.5 text-center">
+                                            <td class="px-2 py-1.5 text-center w-24">
                                                 <button
                                                     type="button"
                                                     x-on:click="
@@ -501,15 +498,21 @@
                                                             alert('Спочатку збережіть місце');
                                                             return;
                                                         }
+                                                        const priceValue = Math.round(parseFloat(place.price || 0));
                                                         $wire.call('savePlaceData', place.id, {
                                                             first_name: place.first_name || '',
                                                             last_name: place.last_name || '',
                                                             phone: place.phone || '',
                                                             telegram: place.telegram || '',
-                                                            info: place.info || ''
+                                                            info: place.info || '',
+                                                            price: priceValue,
+                                                            has_transfer_there: place.has_transfer_there || false,
+                                                            has_transfer_back: place.has_transfer_back || false
                                                         });
+                                                        // Оновлюємо баланс після збереження
+                                                        place.balance = Math.round(priceValue - parseFloat(place.advance || 0));
                                                     "
-                                                    class="px-3 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors"
+                                                    class="px-2 py-1 text-xs font-medium text-white bg-blue-600 hover:bg-blue-700 rounded transition-colors whitespace-nowrap"
                                                     title="Зберегти всі дані"
                                                     style="background-color: #2563eb !important;"
                                                 >

@@ -351,13 +351,19 @@ class EditTour extends EditRecord
                 return;
             }
 
-            // Оновлюємо тільки нефінансові поля
+            // Оновлюємо поля (включаючи ціну, якщо вона була змінена через трансфери)
+            $price = isset($data['price']) ? (float)$data['price'] : (float)($place->price ?? 0);
+            $advance = (float)($place->advance ?? 0);
+            $balance = $price - $advance;
+
             $place->update([
                 'first_name' => $data['first_name'] ?? '',
                 'last_name' => $data['last_name'] ?? '',
                 'phone' => $data['phone'] ?? '',
                 'telegram' => $data['telegram'] ?? '',
                 'info' => $data['info'] ?? '',
+                'price' => $price,
+                'balance' => $balance,
                 'has_transfer_there' => (bool)($data['has_transfer_there'] ?? false),
                 'has_transfer_back' => (bool)($data['has_transfer_back'] ?? false),
             ]);
