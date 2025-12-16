@@ -1152,8 +1152,8 @@ class TourResource extends Resource
                                                                 'telegram' => $originalParentItem->telegram,
                                                                 'advance' => $originalParentItem->advance ?? 0,
                                                                 'balance' => $originalParentItem->balance ?? 0,
-                                                                'has_transfer_there' => $originalParentItem->has_transfer_there ?? false,
-                                                                'has_transfer_back' => $originalParentItem->has_transfer_back ?? false,
+                                                                'has_transfer_there' => true,
+                                                                'has_transfer_back' => true,
                                                                 'info' => $originalParentItem->info,
                                                                 'sort_order' => $originalParentItem->sort_order,
                                                             ]);
@@ -1208,8 +1208,8 @@ class TourResource extends Resource
                                                                     'telegram' => $originalPlace->telegram,
                                                                     'advance' => $advance,
                                                                     'balance' => $balance, // Перераховуємо баланс
-                                                                    'has_transfer_there' => $originalPlace->has_transfer_there ?? false,
-                                                                    'has_transfer_back' => $originalPlace->has_transfer_back ?? false,
+                                                                    'has_transfer_there' => true,
+                                                                    'has_transfer_back' => true,
                                                                     'info' => $originalPlace->info,
                                                                     'sort_order' => $originalPlace->sort_order,
                                                                 ]);
