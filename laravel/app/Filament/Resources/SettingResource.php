@@ -205,13 +205,24 @@ class SettingResource extends Resource
                                 Forms\Components\Section::make('Налаштування погоди')
                                     ->description('Погода відображається тільки для Драгобрату на сьогоднішній день')
                                     ->schema([
+                                        Forms\Components\Select::make('weather_source')
+                                            ->label('Джерело даних про погоду')
+                                            ->options([
+                                                'weatherapi' => 'WeatherAPI.com (агрегатор даних)',
+                                                'snih_info' => 'snih.info (метеостанція Davis)',
+                                            ])
+                                            ->default('weatherapi')
+                                            ->required()
+                                            ->helperText('Виберіть джерело даних про погоду. snih.info - реальна метеостанція Davis на Драгобраті.'),
+                                        
                                         Forms\Components\TextInput::make('weatherapi_key')
                                             ->label('WeatherAPI.com API ключ')
                                             ->placeholder('Вставте ваш API ключ')
-                                            ->helperText('Отримайте безкоштовний ключ на https://www.weatherapi.com/signup.aspx (1,000,000 запитів/місяць безкоштовно). Якщо не вказано, погода не відображатиметься.')
+                                            ->helperText('Потрібен тільки якщо вибрано WeatherAPI.com. Отримайте безкоштовний ключ на https://www.weatherapi.com/signup.aspx (1,000,000 запитів/місяць безкоштовно).')
                                             ->maxLength(255)
                                             ->password()
                                             ->revealable()
+                                            ->visible(fn ($get) => $get('weather_source') === 'weatherapi')
                                             ->rules([
                                                 'nullable',
                                                 'string',
@@ -223,14 +234,15 @@ class SettingResource extends Resource
                                     ]),
                                     
                                 Forms\Components\Section::make('Статистика API')
-                                    ->description('Інформація про використання WeatherAPI.com')
+                                    ->description('Інформація про останнє оновлення погоди')
                                     ->schema([
                                         Forms\Components\TextInput::make('weather_requests_remaining')
                                             ->label('Залишилось запитів')
                                             ->disabled()
                                             ->dehydrated(false)
+                                            ->visible(fn ($get) => $get('weather_source') === 'weatherapi')
                                             ->formatStateUsing(fn ($state) => $state !== null ? number_format($state, 0, ',', ' ') : 'Не визначено')
-                                            ->helperText('Кількість залишкових запитів до API за місяць'),
+                                            ->helperText('Кількість залишкових запитів до WeatherAPI.com за місяць (тільки для WeatherAPI.com)'),
                                             
                                         Forms\Components\TextInput::make('weather_last_updated')
                                             ->label('Останнє оновлення')

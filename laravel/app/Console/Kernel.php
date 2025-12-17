@@ -12,14 +12,8 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // Оновлювати погоду щодня о 8:00 ранку
-        $schedule->command('weather:update')
-            ->dailyAt('08:00')
-            ->timezone('Europe/Kiev')
-            ->withoutOverlapping()
-            ->onFailure(function () {
-                \Log::error('Помилка автоматичного оновлення погоди');
-            });
+        // Погода оновлюється автоматично при завантаженні сторінки користувачем
+        // Кеш зберігається на 4 години
     }
 
     /**

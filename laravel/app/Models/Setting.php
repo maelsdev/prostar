@@ -22,6 +22,7 @@ class Setting extends Model
         'default_weather_resort',
         'openweather_api_key',
         'weatherapi_key',
+        'weather_source',
         'logo_text',
         'logo_image',
         'weather_requests_remaining',
@@ -54,21 +55,34 @@ class Setting extends Model
      */
     public static function getSettings()
     {
-        return static::first() ?? static::create([
-            'phone' => '+38(098) 12-12-011',
-            'telegram_phone' => '380981212011',
-            'whatsapp_phone' => '380981212011',
-            'telegram_username' => 'pro_s_tar',
-            'show_language_switcher' => true,
-            'weather_resorts' => [
-                ['value' => 'dragobrat', 'label' => 'Драгобрат'],
-                ['value' => 'bukovel', 'label' => 'Буковель'],
-                ['value' => 'slavske', 'label' => 'Славське'],
-                ['value' => 'pylypets', 'label' => 'Пилипець'],
-            ],
-            'default_weather_resort' => 'dragobrat',
-            'logo_text' => 'PROSTAR | RADUGAUA | SNІGOWEEK',
-            'logo_image' => null,
-        ]);
+        $settings = static::first();
+        
+        if (!$settings) {
+            $settings = static::create([
+                'phone' => '+38(098) 12-12-011',
+                'telegram_phone' => '380981212011',
+                'whatsapp_phone' => '380981212011',
+                'telegram_username' => 'pro_s_tar',
+                'show_language_switcher' => true,
+                'weather_resorts' => [
+                    ['value' => 'dragobrat', 'label' => 'Драгобрат'],
+                    ['value' => 'bukovel', 'label' => 'Буковель'],
+                    ['value' => 'slavske', 'label' => 'Славське'],
+                    ['value' => 'pylypets', 'label' => 'Пилипець'],
+                ],
+                'default_weather_resort' => 'dragobrat',
+                'logo_text' => 'PROSTAR | RADUGAUA | SNІGOWEEK',
+                'logo_image' => null,
+                'weather_source' => 'weatherapi',
+            ]);
+        }
+        
+        // Якщо weather_source не встановлено, встановити за замовчуванням
+        if (empty($settings->weather_source)) {
+            $settings->weather_source = 'weatherapi';
+            $settings->save();
+        }
+        
+        return $settings;
     }
 }

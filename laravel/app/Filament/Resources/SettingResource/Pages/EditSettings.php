@@ -38,73 +38,52 @@ class EditSettings extends EditRecord
             ->modalDescription('Це оновить дані погоди та статистику API. Продовжити?')
             ->modalSubmitActionLabel('Оновити')
             ->action(function () {
-                $settings = Setting::getSettings();
-                $apiKey = $settings->weatherapi_key;
-                
-                if (!$apiKey) {
-                    \Filament\Notifications\Notification::make()
-                        ->title('Помилка')
-                        ->body('API ключ не налаштовано')
-                        ->danger()
-                        ->send();
-                    return;
-                }
+                // Отримуємо свіжі дані з бази
+                $settings = Setting::first();
+                $weatherController = new \App\Http\Controllers\WeatherController();
                 
                 try {
                     // Очистити кеш
-                    Cache::forget('weather_dragobrat');
+                    Cache::forget('weather_dragobrat_weatherapi');
+                    Cache::forget('weather_dragobrat_snih_info');
                     
-                    // WeatherAPI.com використовує координати lat,lon
-                    $url = "https://api.weatherapi.com/v1/current.json";
-                    $response = Http::timeout(5)->get($url, [
-                        'key' => $apiKey,
-                        'q' => '48.2636,24.2394',
-                        'lang' => 'uk'
-                    ]);
+                    $weatherSource = $settings->weather_source ?? 'weatherapi';
                     
-                    // Отримати інформацію про ліміти з headers
-                    $headers = $response->headers();
-                    $requestsRemaining = null;
-                    
-                    if (isset($headers['x-weatherapi-qpm-left'])) {
-                        $requestsRemaining = (int) $headers['x-weatherapi-qpm-left'][0];
-                    } elseif (isset($headers['X-Weatherapi-Qpm-Left'])) {
-                        $requestsRemaining = (int) $headers['X-Weatherapi-Qpm-Left'][0];
+                    if ($weatherSource === 'snih_info') {
+                        $result = $weatherController->getWeatherFromSnihInfo($settings);
+                    } else {
+                        if (!$settings->weatherapi_key) {
+                            \Filament\Notifications\Notification::make()
+                                ->title('Помилка')
+                                ->body('API ключ не налаштовано')
+                                ->danger()
+                                ->send();
+                            return;
+                        }
+                        $result = $weatherController->getWeatherFromWeatherAPI($settings);
                     }
                     
-                    if ($response->successful()) {
-                        $data = $response->json();
-                        
-                        // Оновити статистику в базі даних
-                        $settings->weather_last_updated = now();
-                        if ($requestsRemaining !== null) {
-                            $settings->weather_requests_remaining = $requestsRemaining;
-                        }
-                        $settings->save();
-                        
-                        // Зберегти в кеш
-                        Cache::put('weather_dragobrat', [
-                            'temp' => round($data['current']['temp_c']) . '°C',
-                            'wind' => round($data['current']['wind_kph'] / 3.6) . ' м/с',
-                            'icon' => 'https:' . ($data['current']['condition']['icon'] ?? ''),
-                            'description' => $data['current']['condition']['text'] ?? null
-                        ], 600);
-                        
-                        // Оновити форму
-                        $this->form->fill($settings->fresh()->toArray());
-                        
-                        \Filament\Notifications\Notification::make()
-                            ->title('Успішно')
-                            ->body('Погода оновлена. Температура: ' . round($data['current']['temp_c']) . '°C')
-                            ->success()
-                            ->send();
-                    } else {
+                    if (isset($result['error'])) {
                         \Filament\Notifications\Notification::make()
                             ->title('Помилка')
-                            ->body('Не вдалося отримати дані з API')
+                            ->body($result['error'])
                             ->danger()
                             ->send();
+                        return;
                     }
+                    
+                    // Зберегти в кеш на 4 години (14400 секунд)
+                    Cache::put('weather_dragobrat_' . $weatherSource, $result, 14400);
+                    
+                    // Оновити форму
+                    $this->form->fill($settings->fresh()->toArray());
+                    
+                    $sourceName = $weatherSource === 'snih_info' ? 'snih.info' : 'WeatherAPI.com';
+                    \Filament\Notifications\Notification::make()
+                        ->title('Успішно')
+                        ->body('Погода оновлена з ' . $sourceName . '. Температура: ' . $result['temp'])
+                        ->success()
+                        ->send();
                 } catch (\Exception $e) {
                     \Filament\Notifications\Notification::make()
                         ->title('Помилка')
@@ -118,7 +97,7 @@ class EditSettings extends EditRecord
     public function mount(int | string $record = null): void
     {
         // Завжди використовувати перший запис або створити новий
-        $this->record = Setting::getSettings();
+        $this->record = Setting::first() ?? Setting::getSettings();
         $this->form->fill($this->record->toArray());
     }
     
@@ -128,8 +107,19 @@ class EditSettings extends EditRecord
         $settings = Setting::first();
         
         if ($settings) {
+            // Очистити кеш погоди перед оновленням, якщо змінюється джерело
+            if (isset($data['weather_source']) && $settings->weather_source !== $data['weather_source']) {
+                Cache::forget('weather_dragobrat_weatherapi');
+                Cache::forget('weather_dragobrat_snih_info');
+            }
+            
             $settings->update($data);
-            return $settings;
+            
+            // Оновити запис, щоб отримати свіжі дані
+            $this->record = $settings->fresh();
+            $this->form->fill($this->record->toArray());
+            
+            return $this->record;
         }
         
         return Setting::create($data);
@@ -145,74 +135,53 @@ class EditSettings extends EditRecord
      */
     public function forceUpdateWeather()
     {
-        $settings = Setting::getSettings();
-        $apiKey = $settings->weatherapi_key;
-        
-        if (!$apiKey) {
-            \Filament\Notifications\Notification::make()
-                ->title('Помилка')
-                ->body('API ключ не налаштовано')
-                ->danger()
-                ->send();
-            return;
-        }
+        // Отримуємо свіжі дані з бази
+        $settings = Setting::first();
+        $weatherController = new \App\Http\Controllers\WeatherController();
         
         try {
             // Очистити кеш
-            Cache::forget('weather_dragobrat');
+            Cache::forget('weather_dragobrat_weatherapi');
+            Cache::forget('weather_dragobrat_snih_info');
             
-            // WeatherAPI.com використовує координати lat,lon
-            $url = "https://api.weatherapi.com/v1/current.json";
-            $response = Http::timeout(5)->get($url, [
-                'key' => $apiKey,
-                'q' => '48.2636,24.2394',
-                'lang' => 'uk'
-            ]);
+            $weatherSource = $settings->weather_source ?? 'weatherapi';
             
-            // Отримати інформацію про ліміти з headers
-            $headers = $response->headers();
-            $requestsRemaining = null;
-            
-            if (isset($headers['x-weatherapi-qpm-left'])) {
-                $requestsRemaining = (int) $headers['x-weatherapi-qpm-left'][0];
-            } elseif (isset($headers['X-Weatherapi-Qpm-Left'])) {
-                $requestsRemaining = (int) $headers['X-Weatherapi-Qpm-Left'][0];
+            if ($weatherSource === 'snih_info') {
+                $result = $weatherController->getWeatherFromSnihInfo($settings);
+            } else {
+                if (!$settings->weatherapi_key) {
+                    \Filament\Notifications\Notification::make()
+                        ->title('Помилка')
+                        ->body('API ключ не налаштовано')
+                        ->danger()
+                        ->send();
+                    return;
+                }
+                $result = $weatherController->getWeatherFromWeatherAPI($settings);
             }
             
-            if ($response->successful()) {
-                $data = $response->json();
-                
-                // Оновити статистику в базі даних
-                $settings->weather_last_updated = now();
-                if ($requestsRemaining !== null) {
-                    $settings->weather_requests_remaining = $requestsRemaining;
-                }
-                $settings->save();
-                
-                // Зберегти в кеш
-                Cache::put('weather_dragobrat', [
-                    'temp' => round($data['current']['temp_c']) . '°C',
-                    'wind' => round($data['current']['wind_kph'] / 3.6) . ' м/с',
-                    'icon' => 'https:' . ($data['current']['condition']['icon'] ?? ''),
-                    'description' => $data['current']['condition']['text'] ?? null
-                ], 600);
-                
-                // Оновити форму
-                $this->record = $settings->fresh();
-                $this->form->fill($this->record->toArray());
-                
-                \Filament\Notifications\Notification::make()
-                    ->title('Успішно')
-                    ->body('Погода оновлена. Температура: ' . round($data['current']['temp_c']) . '°C')
-                    ->success()
-                    ->send();
-            } else {
+            if (isset($result['error'])) {
                 \Filament\Notifications\Notification::make()
                     ->title('Помилка')
-                    ->body('Не вдалося отримати дані з API')
+                    ->body($result['error'])
                     ->danger()
                     ->send();
+                return;
             }
+            
+            // Зберегти в кеш на 4 години (14400 секунд)
+            Cache::put('weather_dragobrat_' . $weatherSource, $result, 14400);
+            
+            // Оновити форму
+            $this->record = $settings->fresh();
+            $this->form->fill($this->record->toArray());
+            
+            $sourceName = $weatherSource === 'snih_info' ? 'snih.info' : 'WeatherAPI.com';
+            \Filament\Notifications\Notification::make()
+                ->title('Успішно')
+                ->body('Погода оновлена з ' . $sourceName . '. Температура: ' . $result['temp'])
+                ->success()
+                ->send();
         } catch (\Exception $e) {
             \Filament\Notifications\Notification::make()
                 ->title('Помилка')
