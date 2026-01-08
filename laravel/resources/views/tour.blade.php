@@ -376,6 +376,7 @@
             </div>
             <form id="bookingForm" class="booking-form">
                 <input type="hidden" name="tour_id" id="booking_tour_id" value="{{ $tour->id }}">
+                <input type="hidden" name="_token" id="booking_csrf_token" value="{{ csrf_token() }}">
                 
                 <div class="booking-form-row">
                     <div class="booking-form-group">
@@ -439,6 +440,13 @@
     @push('scripts')
     <script>
         function openBookingModal(tourId) {
+            // Оновити CSRF токен перед відкриттям модального вікна
+            const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
+            const csrfTokenInput = document.getElementById('booking_csrf_token');
+            if (csrfTokenMeta && csrfTokenInput) {
+                csrfTokenInput.value = csrfTokenMeta.getAttribute('content');
+            }
+            
             document.getElementById('bookingModal').classList.add('active');
             document.body.style.overflow = 'hidden';
             document.getElementById('booking_tour_id').value = tourId;
@@ -732,14 +740,43 @@
             
             try {
                 const formData = new FormData(form);
+                
+                // Отримуємо CSRF токен з форми або з meta тега
+                const csrfTokenInput = document.getElementById('booking_csrf_token');
+                const csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
+                let csrfToken = null;
+                
+                if (csrfTokenInput && csrfTokenInput.value) {
+                    csrfToken = csrfTokenInput.value;
+                } else if (csrfTokenMeta && csrfTokenMeta.getAttribute('content')) {
+                    csrfToken = csrfTokenMeta.getAttribute('content');
+                }
+                
+                if (!csrfToken) {
+                    alert('Помилка: не вдалося отримати токен безпеки. Будь ласка, оновіть сторінку.');
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                    return;
+                }
+                
                 const response = await fetch('{{ route("booking.store") }}', {
                     method: 'POST',
                     headers: {
-                        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+                        'X-CSRF-TOKEN': csrfToken,
                         'Accept': 'application/json',
+                        'X-Requested-With': 'XMLHttpRequest',
                     },
-                    body: formData
+                    body: formData,
+                    credentials: 'same-origin'
                 });
+                
+                // Перевірка статусу відповіді
+                if (response.status === 419) {
+                    // CSRF token mismatch - оновлюємо сторінку
+                    alert('Сесія застаріла. Будь ласка, оновіть сторінку та спробуйте ще раз.');
+                    window.location.reload();
+                    return;
+                }
                 
                 const data = await response.json();
                 
