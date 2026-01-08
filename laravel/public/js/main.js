@@ -102,12 +102,14 @@
     async function loadDragobratWeather() {
         const temperatureEl = document.getElementById('temperature');
         const windSpeedEl = document.getElementById('wind-speed');
+        const humidityEl = document.getElementById('humidity');
         
         if (!temperatureEl || !windSpeedEl) return;
         
         // Показати завантаження
         temperatureEl.textContent = '...';
         windSpeedEl.textContent = '...';
+        if (humidityEl) humidityEl.textContent = '...';
         
         try {
             const response = await fetch('/api/weather');
@@ -116,15 +118,18 @@
             if (data.error) {
                 temperatureEl.textContent = '--°C';
                 windSpeedEl.textContent = '-- м/с';
+                if (humidityEl) humidityEl.textContent = '--%';
                 return;
             }
             
             temperatureEl.textContent = data.temp || '--°C';
             windSpeedEl.textContent = data.wind || '-- м/с';
+            if (humidityEl) humidityEl.textContent = data.humidity || '--%';
         } catch (error) {
             console.error('Помилка отримання погоди:', error);
             temperatureEl.textContent = '--°C';
             windSpeedEl.textContent = '-- м/с';
+            if (humidityEl) humidityEl.textContent = '--%';
         }
     }
 
