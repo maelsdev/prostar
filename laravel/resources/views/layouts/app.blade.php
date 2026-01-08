@@ -174,7 +174,7 @@
         @include('partials.footer')
 
         <!-- Scripts -->
-        <script src="{{ asset('js/main.js') }}"></script>
+        <script src="{{ asset('js/main.js') }}?v={{ filemtime(public_path('js/main.js')) }}"></script>
         @stack('scripts')
     </body>
 </html>
