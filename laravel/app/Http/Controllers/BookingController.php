@@ -13,17 +13,40 @@ class BookingController extends Controller
     public function store(Request $request)
     {
         // Перевірка, що запит надходить з того ж домену (захист від прямого виклику API)
+        // Дозволяємо відсутній referer (може бути при fetch запитах з певних браузерів)
+        // CSRF токен вже захищає від міжсайтових запитів
         $referer = $request->headers->get('referer');
         $appUrl = config('app.url');
-        if ($referer && !str_starts_with($referer, $appUrl)) {
-            \Log::warning('Booking request from unauthorized referer', [
-                'referer' => $referer,
-                'ip' => $request->ip(),
-            ]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Недозволений запит'
-            ], 403);
+        
+        // Якщо referer присутній, перевіряємо домен
+        if ($referer && $appUrl) {
+            // Нормалізуємо URL для порівняння (прибираємо протокол та www)
+            $normalizeDomain = function($url) {
+                if (!$url) return null;
+                $url = strtolower(trim($url));
+                $url = preg_replace('#^https?://#', '', $url);
+                $url = preg_replace('#^www\.#', '', $url);
+                $parsed = parse_url('http://' . $url);
+                return $parsed['host'] ?? null;
+            };
+            
+            $appDomain = $normalizeDomain($appUrl);
+            $refererDomain = $normalizeDomain($referer);
+            
+            // Блокуємо тільки якщо referer присутній і домени не співпадають
+            if ($refererDomain && $appDomain && $refererDomain !== $appDomain) {
+                \Log::warning('Booking request from unauthorized referer', [
+                    'referer' => $referer,
+                    'referer_domain' => $refererDomain,
+                    'app_domain' => $appDomain,
+                    'app_url' => $appUrl,
+                    'ip' => $request->ip(),
+                ]);
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Недозволений запит'
+                ], 403);
+            }
         }
         
         $validator = Validator::make($request->all(), [
