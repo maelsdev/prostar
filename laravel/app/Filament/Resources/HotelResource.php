@@ -43,6 +43,24 @@ class HotelResource extends Resource
                                     ->helperText('Введіть назву готелю')
                                     ->columnSpanFull(),
                                 
+                                Forms\Components\RichEditor::make('description')
+                                    ->label('Опис готелю')
+                                    ->placeholder('Введіть опис готелю')
+                                    ->helperText('Детальний опис готелю, його розташування, послуги та інші важливі деталі. Можна форматувати текст та виділяти акценти.')
+                                    ->toolbarButtons([
+                                        'bold',
+                                        'italic',
+                                        'underline',
+                                        'strike',
+                                        'link',
+                                        'bulletList',
+                                        'orderedList',
+                                        'h2',
+                                        'h3',
+                                        'blockquote',
+                                    ])
+                                    ->columnSpanFull(),
+                                
                                 Forms\Components\Section::make('Кімнати готелю')
                                     ->schema([
                                         Forms\Components\Repeater::make('rooms')

@@ -172,6 +172,19 @@ class TourResource extends Resource
                                 // Очищаємо старі поля, якщо вибрано готель
                                 if ($state) {
                                     $set('hotel_name', null);
+                                    // Підтягуємо опис з готелю (саме поле description, НЕ структуру номерів)
+                                    $hotel = Hotel::find($state);
+                                    if ($hotel) {
+                                        // Підтягуємо САМЕ поле description з готелю, не scheme_description і не структуру номерів
+                                        $description = $hotel->getAttribute('description');
+                                        // Якщо description порожнє або null, залишаємо поле порожнім
+                                        $set('hotel_description', $description ?: null);
+                                    } else {
+                                        $set('hotel_description', null);
+                                    }
+                                } else {
+                                    // Якщо готель не вибрано, очищаємо опис
+                                    $set('hotel_description', null);
                                 }
                             }),
                             
@@ -227,12 +240,38 @@ class TourResource extends Resource
                             ->helperText('Або вкажіть назву готелю вручну')
                             ->visible(fn ($get) => !$get('hotel_id')),
                             
-                        Forms\Components\Textarea::make('hotel_description')
+                        Forms\Components\RichEditor::make('hotel_description')
                             ->label('Опис готелю')
-                            ->rows(3)
                             ->placeholder('Опис готелю, розташування, умови проживання')
-                            ->helperText('Додаткова інформація про готель')
-                            ->visible(fn ($get) => !$get('hotel_id'))
+                            ->helperText(fn ($get) => $get('hotel_id') 
+                                ? 'Опис автоматично підтягнуто з готелю. Можна редагувати та форматувати текст.' 
+                                : 'Введіть опис готелю вручну з можливістю форматування')
+                            ->toolbarButtons([
+                                'bold',
+                                'italic',
+                                'underline',
+                                'strike',
+                                'link',
+                                'bulletList',
+                                'orderedList',
+                                'h2',
+                                'h3',
+                                'blockquote',
+                            ])
+                            ->afterStateHydrated(function ($component, $state, $record) {
+                                // Якщо є запис і вибрано готель, але опис не заповнений, підтягуємо з готелю
+                                if ($record && $record->hotel_id && empty($state)) {
+                                    $hotel = Hotel::find($record->hotel_id);
+                                    if ($hotel) {
+                                        // Підтягуємо саме поле description з готелю, не структуру номерів
+                                        $description = $hotel->description ?? null;
+                                        if ($description) {
+                                            $component->state($description);
+                                        }
+                                    }
+                                }
+                            })
+                            ->reactive()
                             ->columnSpanFull(),
                             
                         Forms\Components\Grid::make(2)
@@ -247,8 +286,7 @@ class TourResource extends Resource
                                     ->helperText('Включені вечері')
                                     ->default(false),
                             ])
-                            ->columnSpanFull()
-                            ->visible(fn ($get) => !$get('hotel_id')),
+                            ->columnSpanFull(),
                             
                         Forms\Components\Placeholder::make('meals_info')
                             ->label('')
@@ -257,8 +295,7 @@ class TourResource extends Resource
                                 'Якщо нічого не відмічено, буде відображатися "Без харчування"' .
                                 '</p>'
                             ))
-                            ->columnSpanFull()
-                            ->visible(fn ($get) => !$get('hotel_id')),
+                            ->columnSpanFull(),
                     ])
                     ->columns(2),
 

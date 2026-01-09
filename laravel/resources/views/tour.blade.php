@@ -225,7 +225,7 @@
                             @endif
                             
                             @if($tour->hotel_description)
-                                <p class="tour-hotel-description">{{ $tour->hotel_description }}</p>
+                                <div class="tour-hotel-description">{!! $tour->hotel_description !!}</div>
                             @endif
                             
                             <div class="tour-meals-info">

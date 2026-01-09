@@ -11,6 +11,7 @@ class Hotel extends Model
 
     protected $fillable = [
         'name',
+        'description',
         'scheme_image_id',
         'scheme_description',
     ];
