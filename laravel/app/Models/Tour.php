@@ -124,9 +124,20 @@ class Tour extends Model
     }
 
     /**
-     * Отримати організаторів туру
+     * Отримати організаторів туру (many-to-many)
      */
     public function organizers()
+    {
+        return $this->belongsToMany(Organizer::class, 'organizer_tour')
+            ->withPivot('sort_order')
+            ->withTimestamps()
+            ->orderByPivot('sort_order');
+    }
+
+    /**
+     * Отримати старі організатори туру (для сумісності)
+     */
+    public function tourOrganizers()
     {
         return $this->hasMany(TourOrganizer::class)->orderBy('sort_order');
     }

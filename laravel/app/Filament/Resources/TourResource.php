@@ -8,6 +8,7 @@ use App\Models\Tour;
 use App\Models\MediaFile;
 use App\Models\TourImage;
 use App\Models\Hotel;
+use App\Models\Organizer;
 use Filament\Forms;
 use Filament\Forms\Form;
 use Filament\Resources\Resource;
@@ -307,66 +308,36 @@ class TourResource extends Resource
 
                 Forms\Components\Section::make('Організатори туру')
                     ->schema([
-                        Forms\Components\Repeater::make('organizers')
-                            ->relationship('organizers')
-                            ->label('Організатори')
-                            ->schema([
-                                Forms\Components\TextInput::make('name')
-                                    ->label('Ім\'я організатора')
-                                    ->required()
-                                    ->maxLength(255)
-                                    ->placeholder('Наприклад: Тарас')
-                                    ->helperText('Введіть ім\'я організатора'),
-                                
-                                Forms\Components\TextInput::make('phone')
-                                    ->label('Номер телефону')
-                                    ->tel()
-                                    ->maxLength(255)
-                                    ->placeholder('+38(098) 12-12-011')
-                                    ->helperText('Номер телефону організатора'),
-                                
-                                Forms\Components\TextInput::make('telegram_username')
-                                    ->label('Нік в Telegram')
-                                    ->maxLength(255)
-                                    ->placeholder('@username')
-                                    ->helperText('Нікнейм в Telegram (без @)')
-                                    ->prefix('@')
-                                    ->formatStateUsing(fn ($state) => $state ? ltrim($state, '@') : null)
-                                    ->dehydrateStateUsing(fn ($state) => $state ? ltrim($state, '@') : null),
-                                
-                                Forms\Components\TextInput::make('sort_order')
-                                    ->label('Порядок сортування')
-                                    ->numeric()
-                                    ->default(0)
-                                    ->helperText('Чим менше число, тим вище в списку'),
-                            ])
-                            ->columns(2)
-                            ->itemLabel(function (array $state): ?string {
-                                $name = $state['name'] ?? 'Новий організатор';
-                                $phone = $state['phone'] ?? '';
-                                $telegram = $state['telegram_username'] ?? '';
-                                
-                                $parts = [$name];
-                                if ($phone) {
-                                    $parts[] = $phone;
+                        Forms\Components\Select::make('organizers')
+                            ->label('Оберіть організаторів')
+                            ->relationship('organizers', 'name')
+                            ->multiple()
+                            ->searchable()
+                            ->preload()
+                            ->placeholder('Оберіть організаторів зі списку')
+                            ->helperText('Виберіть організаторів зі списку або створіть нового')
+                            ->suffixAction(
+                                Forms\Components\Actions\Action::make('create_organizer')
+                                    ->label('Створити нового організатора')
+                                    ->icon('heroicon-o-plus')
+                                    ->url(fn () => \App\Filament\Resources\OrganizerResource::getUrl('create'))
+                                    ->openUrlInNewTab()
+                            )
+                            ->getOptionLabelFromRecordUsing(function ($record) {
+                                $parts = [$record->name];
+                                if ($record->phone) {
+                                    $parts[] = $record->phone;
                                 }
-                                if ($telegram) {
-                                    $parts[] = '@' . ltrim($telegram, '@');
+                                if ($record->telegram_username) {
+                                    $parts[] = '@' . ltrim($record->telegram_username, '@');
                                 }
-                                
                                 return implode(' • ', $parts);
                             })
-                            ->defaultItems(0)
-                            ->collapsible()
-                            ->collapsed()
-                            ->addActionLabel('Додати організатора')
-                            ->reorderable()
-                            ->deletable()
                             ->columnSpanFull(),
                     ])
                     ->collapsible()
                     ->collapsed(false)
-                    ->description('Додайте контакти організаторів туру. Вони будуть відображатися на сторінці туру.')
+                    ->description('Оберіть організаторів туру зі списку. Організаторів можна створювати та редагувати в розділі "Організатори".')
                     ->columnSpanFull(),
 
                 Forms\Components\Section::make('Головне фото туру')
