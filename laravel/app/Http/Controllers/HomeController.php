@@ -13,9 +13,10 @@ class HomeController extends Controller
     {
         $page = Page::getBySlug('home');
         
-        // Отримати всі тури, які ще не закінчилися, відсортовані за датою старту (максимум 10)
+        // Отримати всі тури, які ще не закінчилися та не архівовані, відсортовані за датою старту (максимум 10)
         // Завантажуємо зв'язок mainImage для оптимізації
         $tours = Tour::where('end_date', '>=', Carbon::today())
+            ->where('is_archived', false)
             ->with('mainImage')
             ->orderBy('start_date', 'asc')
             ->limit(10)

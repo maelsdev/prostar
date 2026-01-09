@@ -43,6 +43,12 @@ class TourResource extends Resource
                             ->helperText('Якщо увімкнено, користувачі зможуть бронювати цей тур. Якщо вимкнено, буде показано повідомлення про відсутність місць.')
                             ->default(true)
                             ->columnSpanFull(),
+                        
+                        Forms\Components\Toggle::make('is_archived')
+                            ->label('Архівовано')
+                            ->helperText('Якщо увімкнено, тур буде переміщено в архів. Посилання залишиться активним, але тур буде позначено як завершений.')
+                            ->default(false)
+                            ->columnSpanFull(),
                     ])
                     ->collapsible()
                     ->collapsed(false),
@@ -1429,7 +1435,14 @@ class TourResource extends Resource
                 Tables\Columns\TextColumn::make('name')
                     ->label('Назва туру')
                     ->searchable()
-                    ->sortable(),
+                    ->sortable()
+                    ->formatStateUsing(function ($state, $record) {
+                        $badge = $record->is_archived 
+                            ? ' <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-medium bg-gray-100 text-gray-800">Архів</span>' 
+                            : '';
+                        return $state . $badge;
+                    })
+                    ->html(),
                     
                 Tables\Columns\TextColumn::make('resort')
                     ->label('Курорт')
@@ -1500,6 +1513,28 @@ class TourResource extends Resource
             ])
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\Action::make('archive')
+                    ->label('Архівувати')
+                    ->icon('heroicon-o-archive-box')
+                    ->color('warning')
+                    ->requiresConfirmation()
+                    ->modalHeading('Архівувати тур')
+                    ->modalDescription('Тур буде переміщено в архів. Посилання залишиться активним, але тур буде позначено як завершений.')
+                    ->action(function (Tour $record) {
+                        $record->update(['is_archived' => true]);
+                    })
+                    ->visible(fn (Tour $record) => !$record->is_archived),
+                Tables\Actions\Action::make('unarchive')
+                    ->label('Розархівувати')
+                    ->icon('heroicon-o-arrow-uturn-left')
+                    ->color('success')
+                    ->requiresConfirmation()
+                    ->modalHeading('Розархівувати тур')
+                    ->modalDescription('Тур буде повернено з архіву.')
+                    ->action(function (Tour $record) {
+                        $record->update(['is_archived' => false]);
+                    })
+                    ->visible(fn (Tour $record) => $record->is_archived),
                 Tables\Actions\DeleteAction::make(),
             ])
             ->bulkActions([
@@ -1523,6 +1558,7 @@ class TourResource extends Resource
             'index' => Pages\ListTours::route('/'),
             'create' => Pages\CreateTour::route('/create'),
             'edit' => Pages\EditTour::route('/{record}/edit'),
+            'archived' => Pages\ListArchivedTours::route('/archived'),
         ];
     }
 }

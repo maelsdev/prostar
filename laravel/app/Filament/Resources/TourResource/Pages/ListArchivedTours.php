@@ -7,25 +7,25 @@ use Filament\Actions;
 use Filament\Resources\Pages\ListRecords;
 use Illuminate\Database\Eloquent\Builder;
 
-class ListTours extends ListRecords
+class ListArchivedTours extends ListRecords
 {
     protected static string $resource = TourResource::class;
 
     protected function getHeaderActions(): array
     {
         return [
-            Actions\CreateAction::make(),
-            Actions\Action::make('archived')
-                ->label('Архів турів')
-                ->icon('heroicon-o-archive-box')
-                ->color('gray')
-                ->url(TourResource::getUrl('archived')),
+            //
         ];
     }
 
     protected function getTableQuery(): Builder
     {
         return static::getResource()::getEloquentQuery()
-            ->where('is_archived', false);
+            ->where('is_archived', true);
+    }
+
+    public function getTitle(): string
+    {
+        return 'Архів турів';
     }
 }
