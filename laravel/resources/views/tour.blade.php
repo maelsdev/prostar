@@ -339,26 +339,94 @@
                                 </p>
                             </div>
                         @endif
-                        <a href="tel:+380981212011" class="btn btn-outline btn-block tour-call-btn">
+                        @php
+                            $firstPhone = $tour->organizers && $tour->organizers->count() > 0 
+                                ? $tour->organizers->first()->phone 
+                                : null;
+                            if ($firstPhone) {
+                                $phoneClean = preg_replace('/[^0-9+]/', '', $firstPhone);
+                                // Форматуємо номер телефону до вигляду +38(098)121-20-11
+                                // Формат: +38(098)121-20-11 = +38 + 3 цифри (код) + 3 цифри + 2 цифри + 2 цифри
+                                if (preg_match('/^\+?38(\d{3})(\d{3})(\d{2})(\d{2})$/', $phoneClean, $matches)) {
+                                    $phoneFormatted = '+38(' . $matches[1] . ')' . $matches[2] . '-' . $matches[3] . '-' . $matches[4];
+                                } else {
+                                    $phoneFormatted = $firstPhone;
+                                }
+                                $phoneNumber = $phoneClean;
+                                $phoneDisplay = $phoneFormatted;
+                            } else {
+                                $phoneNumber = '380981212011';
+                                $phoneDisplay = '+38(098)121-20-11';
+                            }
+                        @endphp
+                        <a href="tel:{{ $phoneNumber }}" class="btn btn-outline btn-block tour-call-btn">
                             <i class="fas fa-phone-alt"></i>
-                            +38(098) 12-12-011
+                            {{ $phoneDisplay }}
                         </a>
                     </div>
 
                     <!-- Додаткова інформація -->
+                    @if($tour->organizers && $tour->organizers->count() > 0)
                     <div class="tour-sidebar-card">
                         <h3 class="tour-sidebar-title">Контакти</h3>
                         <div class="tour-contact-info">
-                            <div class="tour-contact-item">
-                                <i class="fab fa-telegram"></i>
-                                <a href="https://t.me/pro_s_tar" target="_blank" rel="noopener noreferrer">@pro_s_tar</a>
+                            @foreach($tour->organizers as $organizer)
+                            @php
+                                // Обробляємо дані організатора
+                                $phoneClean = null;
+                                $phoneFormatted = null;
+                                
+                                if ($organizer->phone) {
+                                    // Очищаємо номер від всіх символів, крім цифр та +
+                                    $phoneClean = preg_replace('/[^0-9+]/', '', $organizer->phone);
+                                    
+                                    // Якщо номер починається з 0, замінюємо на +38
+                                    if (preg_match('/^0(\d{9})$/', $phoneClean, $matches)) {
+                                        $phoneClean = '+38' . $matches[1];
+                                    }
+                                    // Якщо номер починається з 38 без +, додаємо +
+                                    elseif (preg_match('/^38(\d{10})$/', $phoneClean, $matches)) {
+                                        $phoneClean = '+38' . $matches[1];
+                                    }
+                                    
+                                    // Форматуємо номер телефону до вигляду +38(098)121-20-11
+                                    // Формат: +38(098)121-20-11 = +38 + 3 цифри (код) + 3 цифри + 2 цифри + 2 цифри
+                                    if (preg_match('/^\+?38(\d{3})(\d{3})(\d{2})(\d{2})$/', $phoneClean, $matches)) {
+                                        $phoneFormatted = '+38(' . $matches[1] . ')' . $matches[2] . '-' . $matches[3] . '-' . $matches[4];
+                                    } else {
+                                        // Якщо не вдалося відформатувати, залишаємо оригінал
+                                        $phoneFormatted = $organizer->phone;
+                                    }
+                                }
+                            @endphp
+                            <div class="tour-organizer">
+                                @if($organizer->name)
+                                <div class="tour-organizer-name">{{ $organizer->name }}</div>
+                                @endif
+                                <div class="tour-contact-items">
+                                    @if($organizer->phone)
+                                    <div class="tour-contact-item">
+                                        <i class="fas fa-phone-alt"></i>
+                                        <a href="tel:{{ $phoneClean ?: preg_replace('/[^0-9+]/', '', $organizer->phone) }}">{{ $phoneFormatted ?: $organizer->phone }}</a>
+                                    </div>
+                                    @endif
+                                    @if($organizer->telegram_username)
+                                    @php
+                                        $tgUsername = trim(ltrim($organizer->telegram_username, '@'));
+                                    @endphp
+                                    @if(!empty($tgUsername))
+                                    <div class="tour-contact-item">
+                                        <i class="fab fa-telegram"></i>
+                                        <a href="https://t.me/{{ $tgUsername }}" target="_blank" rel="noopener noreferrer">@<?php echo htmlspecialchars($tgUsername, ENT_QUOTES, 'UTF-8'); ?></a>
+                                    </div>
+                                    @endif
+                                    @endif
+                                </div>
                             </div>
-                            <div class="tour-contact-item">
-                                <i class="fab fa-whatsapp"></i>
-                                <a href="https://wa.me/380981212011" target="_blank" rel="noopener noreferrer">WhatsApp</a>
-                            </div>
+                            @endforeach
                         </div>
                     </div>
+                    @endif
                 </div>
             </div>
         </div>

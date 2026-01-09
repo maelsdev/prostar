@@ -122,6 +122,14 @@ class Tour extends Model
     }
 
     /**
+     * Отримати організаторів туру
+     */
+    public function organizers()
+    {
+        return $this->hasMany(TourOrganizer::class)->orderBy('sort_order');
+    }
+
+    /**
      * Транслітерація українського тексту в латиницю для slug
      */
     public static function transliterate(string $text): string

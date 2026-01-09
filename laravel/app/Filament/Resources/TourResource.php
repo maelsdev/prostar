@@ -299,6 +299,70 @@ class TourResource extends Resource
                     ])
                     ->columns(2),
 
+                Forms\Components\Section::make('Організатори туру')
+                    ->schema([
+                        Forms\Components\Repeater::make('organizers')
+                            ->relationship('organizers')
+                            ->label('Організатори')
+                            ->schema([
+                                Forms\Components\TextInput::make('name')
+                                    ->label('Ім\'я організатора')
+                                    ->required()
+                                    ->maxLength(255)
+                                    ->placeholder('Наприклад: Тарас')
+                                    ->helperText('Введіть ім\'я організатора'),
+                                
+                                Forms\Components\TextInput::make('phone')
+                                    ->label('Номер телефону')
+                                    ->tel()
+                                    ->maxLength(255)
+                                    ->placeholder('+38(098) 12-12-011')
+                                    ->helperText('Номер телефону організатора'),
+                                
+                                Forms\Components\TextInput::make('telegram_username')
+                                    ->label('Нік в Telegram')
+                                    ->maxLength(255)
+                                    ->placeholder('@username')
+                                    ->helperText('Нікнейм в Telegram (без @)')
+                                    ->prefix('@')
+                                    ->formatStateUsing(fn ($state) => $state ? ltrim($state, '@') : null)
+                                    ->dehydrateStateUsing(fn ($state) => $state ? ltrim($state, '@') : null),
+                                
+                                Forms\Components\TextInput::make('sort_order')
+                                    ->label('Порядок сортування')
+                                    ->numeric()
+                                    ->default(0)
+                                    ->helperText('Чим менше число, тим вище в списку'),
+                            ])
+                            ->columns(2)
+                            ->itemLabel(function (array $state): ?string {
+                                $name = $state['name'] ?? 'Новий організатор';
+                                $phone = $state['phone'] ?? '';
+                                $telegram = $state['telegram_username'] ?? '';
+                                
+                                $parts = [$name];
+                                if ($phone) {
+                                    $parts[] = $phone;
+                                }
+                                if ($telegram) {
+                                    $parts[] = '@' . ltrim($telegram, '@');
+                                }
+                                
+                                return implode(' • ', $parts);
+                            })
+                            ->defaultItems(0)
+                            ->collapsible()
+                            ->collapsed()
+                            ->addActionLabel('Додати організатора')
+                            ->reorderable()
+                            ->deletable()
+                            ->columnSpanFull(),
+                    ])
+                    ->collapsible()
+                    ->collapsed(false)
+                    ->description('Додайте контакти організаторів туру. Вони будуть відображатися на сторінці туру.')
+                    ->columnSpanFull(),
+
                 Forms\Components\Section::make('Головне фото туру')
                     ->schema([
                         Forms\Components\Select::make('main_image_id')

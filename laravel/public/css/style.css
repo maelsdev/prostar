@@ -4479,6 +4479,32 @@ section.visible {
     gap: 12px;
 }
 
+.tour-organizer {
+    margin-bottom: 16px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e5e7eb;
+}
+
+.tour-organizer:last-child {
+    margin-bottom: 0;
+    padding-bottom: 0;
+    border-bottom: none;
+}
+
+.tour-organizer-name {
+    font-weight: 600;
+    font-size: 15px;
+    color: var(--color-dark);
+    margin-bottom: 8px;
+    font-family: var(--font-primary);
+}
+
+.tour-contact-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
 .tour-contact-item {
     display: flex;
     align-items: center;

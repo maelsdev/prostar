@@ -9,7 +9,7 @@ class TourController extends Controller
 {
     public function show($slug)
     {
-        $tour = Tour::with(['mainImage', 'images.mediaFile'])
+        $tour = Tour::with(['mainImage', 'images.mediaFile', 'organizers'])
             ->where('slug', $slug)
             ->firstOrFail();
         
